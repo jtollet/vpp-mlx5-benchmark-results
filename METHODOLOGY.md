@@ -31,9 +31,6 @@ packet provide the more useful software-efficiency comparison.
 - Multiple UDP flows selected so every configured RX queue was active. RSS
   and worker balance were verified from per-queue and per-thread deltas.
 
-GSO/TSO was not used. It changes the workload to TCP segmentation and did not
-improve the generator used for the comparable UDP64 matrix.
-
 ## Measurement
 
 The retained values are normally the mean of three independent 20-second

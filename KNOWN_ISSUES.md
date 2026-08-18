@@ -32,8 +32,8 @@ The native VPP RDMA-DV path originally used one legacy SEND WQE per packet on
 these tests. [VPP change 46465](https://gerrit.fd.io/r/c/vpp/+/46465) adds an
 enhanced Multi-Packet WQE path for hardware which advertises the capability.
 Compatible packets are grouped into one eMPW session. An incompatible packet
-flushes the current session and is sent through the appropriate SEND/TSO
-path; a following compatible run can start a new eMPW session.
+flushes the current session and is sent through the existing fallback path; a
+following compatible run can start a new eMPW session.
 
 ConnectX-5, ConnectX-6 Dx and BlueField-3 exercise eMPW. ConnectX-4 does not
 advertise the capability and automatically remains on legacy SEND. The

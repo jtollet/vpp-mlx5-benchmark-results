@@ -55,7 +55,7 @@ Representative native controls include:
 - BF3 two-worker q2/q4/q8 measured 27.291 / 23.070 / 13.736 Mpps. With q2,
   1600-byte data buffers beat 2048-byte buffers, and a one-million-buffer pool
   won the short screen.
-- Mixed eMPW-compatible, ordinary SEND and TSO sequences were validated
+- Mixed compatible and incompatible packet sequences were validated
   separately. A compatible run after an incompatible packet starts a new
   eMPW session; the fallback does not permanently disable batching.
 

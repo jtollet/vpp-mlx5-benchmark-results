@@ -32,6 +32,8 @@ NIC generation and CPU. Defaults were only starting points.
 by rdma-core. It is the shortest of the three software paths considered here.
 For ConnectX-5 and newer hardware, our test tree adds enhanced Multi-Packet
 WQE (eMPW), grouping compatible packets into one transmit work queue element.
+Despite the plugin name, the test carries ordinary Ethernet/IP traffic through
+a raw-packet QP; it is not an RDMA or RoCE endpoint benchmark.
 
 **VPP/DPDK** uses VPP's DPDK plugin and the mature mlx5 poll-mode driver. It
 offers a broad, portable device framework and a rich set of mlx5 controls:
@@ -229,7 +231,7 @@ and is labelled accordingly; this is not an upstream bug-fix claim.
 
 Second, the native RDMA driver needed eMPW to use the newer transmit hardware
 efficiently. The proposed VPP change packs compatible packets into one WQE,
-while falling back safely for incompatible SEND or TSO packets. ConnectX-5,
+while falling back safely to the existing SEND path for incompatible packets. ConnectX-5,
 ConnectX-6 Dx and BlueField-3 exercise that path; ConnectX-4 advertises no
 enhanced-MPW capability and remains on legacy SEND. The implementation is
 currently under review as
@@ -238,9 +240,9 @@ preview of review code rather than a released-version claim.
 
 For completeness, the tested VPP review chain contains four public changes:
 
-- [45505](https://gerrit.fd.io/r/c/vpp/+/45505): mlx5 DV TSO support and TX
-  completion/WQE accounting. It is the parent of eMPW; UDP64 does not exercise
-  TSO.
+- [45505](https://gerrit.fd.io/r/c/vpp/+/45505): the parent TX/WQE-accounting
+  change on which the eMPW series is based; its offload feature is not
+  exercised by UDP64.
 - [46155](https://gerrit.fd.io/r/c/vpp/+/46155): correct verbs-port selection,
   a setup/correctness fix rather than a dataplane optimization.
 - [46465](https://gerrit.fd.io/r/c/vpp/+/46465): eMPW, material to the native
