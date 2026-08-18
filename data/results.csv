@@ -1,0 +1,26 @@
+hardware,cpu,driver,profile,workers,extra_irq_cpus,rx_queues,throughput_mpps,dataplane_cycles_per_packet,dataplane_instructions_per_packet,main_cycles_per_packet,main_instructions_per_packet,qualification
+ConnectX-4,Intel Xeon Gold 6146,RDMA-DV,primary,1,0,2,16.072,204.838,433.839,,,maximum
+ConnectX-4,Intel Xeon Gold 6146,DPDK mlx5,primary,1,0,1,16.374,201.067,480.969,,,maximum
+ConnectX-4,Intel Xeon Gold 6146,AF_XDP ZC,strict,1,0,1,2.996,1098.893,1784.211,,,clean fixed-rate point
+ConnectX-4,Intel Xeon Gold 6146,RDMA-DV,primary,2,0,4,29.972,218.923,459.297,4.672,,maximum
+ConnectX-4,Intel Xeon Gold 6146,DPDK mlx5,primary,2,0,2,30.410,215.784,537.009,4.641,,maximum
+ConnectX-4,Intel Xeon Gold 6146,AF_XDP ZC,strict,2,0,2,3.757,1746.472,3067.248,37.049,,clean fixed-rate point
+ConnectX-4,Intel Xeon Gold 6146,AF_XDP ZC,maximum,2,2,2,11.655,1228.593,2196.184,11.938,,maximum with separate IRQ/NAPI CPUs
+ConnectX-5,Intel Xeon Gold 6146,RDMA-DV,primary,1,0,1,23.674166,130.657,331.818,,,maximum
+ConnectX-5,Intel Xeon Gold 6146,DPDK mlx5,primary,1,0,1,18.221099,169.761,452.379,,,maximum
+ConnectX-5,Intel Xeon Gold 6146,AF_XDP ZC,strict,1,0,1,4.786439,646.260,1485.417,,,maximum with IRQ/NAPI on worker CPU
+ConnectX-5,Intel Xeon Gold 6146,RDMA-DV,primary,2,0,2,43.527036,141.660,332.030,1.270,2.040,maximum
+ConnectX-5,Intel Xeon Gold 6146,DPDK mlx5,primary,2,0,2,35.577637,173.320,457.140,1.470,2.350,maximum
+ConnectX-5,Intel Xeon Gold 6146,AF_XDP ZC,strict,2,0,2,8.954050,688.740,1561.100,5.970,9.630,clean fixed-rate point
+ConnectX-5,Intel Xeon Gold 6146,AF_XDP ZC,maximum,2,2,2,11.807817,1126.720,2449.550,4.460,7.300,maximum with separate IRQ/NAPI CPUs
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,RDMA-DV,primary,1,0,4,46.269,88.620,317.750,,,maximum
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,DPDK mlx5,primary,1,0,2,36.925,111.045,421.429,,,maximum
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,AF_XDP ZC,strict,1,0,1,9.012,454.904,1485.509,,,maximum with IRQ/NAPI on worker CPU
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,RDMA-DV,primary,2,0,4,47.582,171.400,650.200,0.689,,clean point
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,DPDK mlx5,primary,2,0,4,47.720,171.000,633.000,0.771,,maximum with small PMD RX miss
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,AF_XDP ZC,strict,2,0,4,13.119,624.890,1946.860,1.900,3.990,strict CPU-budget control with tiny loss
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,AF_XDP ZC,maximum,2,2,2,20.952,767.000,2470.000,1.200,,maximum with separate IRQ/NAPI CPUs
+BlueField-3,Arm Cortex-A78AE,RDMA-DV,primary,1,0,1,14.639,136.387,349.636,,,maximum
+BlueField-3,Arm Cortex-A78AE,DPDK mlx5,primary,1,0,1,10.333,193.211,470.171,,,maximum
+BlueField-3,Arm Cortex-A78AE,RDMA-DV,primary,2,0,2,26.931173,148.596,349.568,2.444,4.753,maximum
+BlueField-3,Arm Cortex-A78AE,DPDK mlx5,primary,2,0,2,21.210468,188.674,459.060,3.153,6.059,maximum

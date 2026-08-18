@@ -1,0 +1,5 @@
+hardware,cpu,isa,observed_worker_ghz,platform_rationale
+ConnectX-4,Intel Xeon Gold 6146,x86_64 Skylake,3.293,Period-matched host platform for the oldest NIC generation
+ConnectX-5,Intel Xeon Gold 6146,x86_64 Skylake,3.093,Same CPU family as ConnectX-4 to keep those two generations comparable
+ConnectX-6 Dx,Intel Xeon Platinum 8562Y+,x86_64 Sapphire Rapids,4.100,Modern PCIe 4 host chosen to expose the newer NIC datapath
+BlueField-3,Arm Cortex-A78AE,Armv8.2-A,1.997,Embedded DPU execution rather than a host-NIC comparison

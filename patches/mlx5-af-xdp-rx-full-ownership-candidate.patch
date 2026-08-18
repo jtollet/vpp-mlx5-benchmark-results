@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Jerome Tollet <jtollet@cisco.com>
+Date: Tue, 18 Aug 2026 00:00:00 +0200
+Subject: [RFC] net/mlx5e: preserve XSK ownership on RX-ring-full redirect
+
+When xsk_rcv_zc() cannot publish a descriptor because the userspace RX
+ring is full, it recycles the XSK buffer before returning -ENOBUFS.  The
+mlx5 legacy cyclic RQ releases its WQE later.  If the recycled buffer is
+allocated again before that deferred release, freeing it a second time
+creates an ABA ownership violation.
+
+Mark this mlx5 XSK -ENOBUFS path as having transferred/recycled buffer
+ownership so the deferred WQE release does not free it again.
+
+This is a diagnostic RFC candidate, not an accepted upstream fix.  The
+maintainers may prefer to make the generic XSK ownership contract more
+explicit instead.
+
+Signed-off-by: Jerome Tollet <jtollet@cisco.com>
+---
+ drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c b/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
+index d8c7cb883..94568e9f6 100644
+--- a/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
++++ b/drivers/net/ethernet/mellanox/mlx5/core/en/xdp.c
+@@ -334,8 +334,11 @@ bool mlx5e_xdp_handle(struct mlx5e_rq *rq,
+ 	case XDP_REDIRECT:
+ 		/* When XDP enabled then page-refcnt==1 here */
+ 		err = xdp_do_redirect(rq->netdev, xdp, prog);
+-		if (unlikely(err))
++		if (unlikely(err)) {
++			if (rq->xsk_pool && err == -ENOBUFS)
++				__set_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags);
+ 			goto xdp_abort;
++		}
+ 		__set_bit(MLX5E_RQ_FLAG_XDP_XMIT, rq->flags);
+ 		__set_bit(MLX5E_RQ_FLAG_XDP_REDIRECT, rq->flags);
+ 		rq->stats->xdp_redirect++;
+-- 
+2.43.0
