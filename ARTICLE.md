@@ -38,8 +38,6 @@ NIC generation and CPU. Defaults were only starting points.
 
 **Native RDMA-DV** uses VPP buffers and the mlx5 direct-verbs interface exposed
 by rdma-core. It is the shortest of the three software paths considered here.
-For ConnectX-5 and newer hardware, our test tree adds enhanced Multi-Packet
-WQE (eMPW), grouping compatible packets into one transmit work queue element.
 Despite the plugin name, the test carries ordinary Ethernet/IP traffic through
 a raw-packet QP; it is not an RDMA or RoCE endpoint benchmark.
 
