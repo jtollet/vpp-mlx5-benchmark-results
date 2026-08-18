@@ -50,12 +50,21 @@ as a formal NDR result.
 Cycles and instructions were collected with Linux perf:
 
 - RDMA-DV and DPDK dataplane cost is the sum of the worker threads.
+- For a two-worker result, cycles per packet is the sum of both workers'
+  counters divided by successful physical TX packets, not the cost reported
+  by either worker in isolation.
 - For strict AF_XDP, IRQ/NAPI executes on the same CPU or CPUs as the VPP
   workers, so CPU-wide counters include both userspace and kernel work.
 - AF_XDP maximum-PPS controls use separate IRQ/NAPI CPUs; their kernel cost is
   added to the VPP worker cost rather than hidden.
 - The VPP main thread is shown separately. It is lightly loaded, but it still
   exists and is not described as a dataplane worker.
+
+Because VPP workers are poll-mode threads, `cycles/packet * packets/second`
+reconstructs their counted cycle rate even when some cycles were spent polling
+empty queues. It is an accounting identity, not proof that every cycle did
+useful packet work. Ideal scaling from one to two workers requires both a
+balanced workload and similar useful cost and batching per packet.
 
 ## Software
 

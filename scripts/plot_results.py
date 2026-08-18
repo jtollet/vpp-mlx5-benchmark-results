@@ -137,7 +137,7 @@ def cpu_budget_chart(rows):
         ax.set_xticks(x, ["1 worker", "2 workers"])
         ax.grid(axis="y", alpha=0.25)
         ax.set_axisbelow(True)
-    axes[0].set_ylabel("Accounted dataplane CPU budget (GHz)")
+    axes[0].set_ylabel("Counted dataplane cycles/s (GHz)")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper center", bbox_to_anchor=(0.5, 1.01),
                ncol=3, frameon=False)

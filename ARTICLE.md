@@ -82,10 +82,12 @@ packet is the better metric for comparing software efficiency across CPUs.
 ## Results
 
 The table below uses the same CPU budget for each driver: one or two dataplane
-CPUs. For AF_XDP, mlx5 IRQ/NAPI is colocated with the VPP workers and included
-in the cycles column. A separate maximum-AF control is discussed below. For
-readability, throughput is rounded to 0.1 Mpps and cycles per packet to the
-nearest cycle; the public CSV retains the measured precision.
+CPUs. These labels count VPP workers, not the always-present VPP main thread;
+the main thread was measured separately. For AF_XDP, mlx5 IRQ/NAPI is
+colocated with the VPP workers and included in the cycles column. A separate
+maximum-AF control is discussed below. For readability, throughput is rounded
+to 0.1 Mpps and cycles per packet to the nearest cycle; the public CSV retains
+the measured precision.
 
 | Hardware | Driver | 1 worker Mpps / cycles-pkt | 2 workers Mpps / cycles-pkt | 1→2 scaling |
 |---|---|---:|---:|---:|
@@ -112,7 +114,9 @@ The cycles/packet values above cover the dataplane workers. For strict AF_XDP
 they include kernel work on those CPUs. VPP also has a main core: at two
 workers it added roughly 0.7–4.7 cycles per packet to RDMA/DPDK depending on
 the platform. It was lightly loaded, but it is not hidden from the public
-dataset.
+dataset. In every two-worker row, cycles per packet is the sum of the two
+worker counters divided by successful physical TX packets; it is not a
+per-worker value.
 
 The comparison is intentionally factual rather than a verdict against a
 framework. Tuned DPDK is the fastest path on ConnectX-4 and is effectively
@@ -144,8 +148,9 @@ has been individually assigned to DPDK.
 The counterexamples are equally important. DPDK wins CX4 because its mature
 CX4 vector/MPW path slightly outperforms native legacy SEND. On CX6 with two
 workers, the stacks converge near 47.6 Mpps and 171 aggregate worker cycles
-per packet: the measured aggregate work nearly doubles, erasing the native
-advantage seen with one worker. A CX6 one-worker profile
+per successful packet. That number is a symptom of the missing scaling, not
+its cause: both poll-mode workers keep running while the successful packet
+rate barely changes. A CX6 one-worker profile
 assigned about 34.6% of CPU samples to generic IPv4 lookup/rewrite, compared
 with 14.4% to native RX, 10.1% to eMPW preparation and 6.7% to TX
 completion/free. Those numbers bound how much a driver-only optimization can
@@ -160,32 +165,39 @@ workers.
 
 ![Scaling from one to two workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/worker-scaling.png)
 
-## Why cycles per packet predict throughput
+## How to interpret cycles per packet
 
-Once a worker is saturated, a simple identity becomes extremely useful:
+Cycles per packet is the counted worker cycles divided by successfully
+forwarded physical packets:
 
 ```text
-cycles/packet × packets/second ≈ cycles/second available from the worker CPU
+cycles/packet × packets/second = counted worker cycles/second
 ```
 
-For example, the underlying CX5 native measurements reconstruct about
-3.1 billion cycles/second — the observed worker frequency. The CX6 result
-similarly reconstructs about 4.1 GHz. With two workers, the same calculation
-reconstructs the sum of their cycle budgets.
+For a poll-mode worker this identity must be handled carefully. The worker
+continues spinning when a queue is empty, so reconstructing its clock rate is
+an accounting check, not by itself proof of useful saturation. Cycles per
+packet includes productive graph work, empty polling, stalls and retries. It
+becomes explanatory only when combined with offered load, physical losses,
+queue balance and vector sizes.
 
-This is both a sanity check and a performance model. If the worker remains the
-bottleneck, reducing cycles per packet translates almost linearly into more
-packets per second. If Mpps stops scaling while CPU capacity remains, another
-resource has taken over.
+Under ideal two-worker scaling, the available worker cycles double, useful
+cycles per packet stay roughly constant and throughput nearly doubles. The
+VPP main thread remains an additional core even when lightly loaded, so its
+cost is reported separately rather than folded into either worker.
 
-![Measured CPU budget reconstructed from cycles and Mpps](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
+![Counted poll-mode CPU cycles per second reconstructed from cycles and Mpps](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
 
 The CX6 is the interesting exception in the scaling chart. One native worker
-already forwards 46.3 Mpps at 89 cycles per packet: their product reconstructs
-the worker's 4.1 GHz clock, showing that the core is fully consumed. Two
-workers reach only 47.6 Mpps because aggregate cost rises to 171 worker cycles
-per packet; two 4.1 GHz cycle budgets divided by that cost predict essentially
-the measured throughput.
+forwards 46.3 Mpps at 89 counted cycles per packet with roughly 60 Mpps
+offered. Two balanced workers should therefore approach twice that rate if
+they retain the same batching efficiency. Instead, they forward only 47.6
+Mpps and the aggregate counter reports 171 worker cycles per successful
+packet. The second worker's cycle budget is being consumed without a
+corresponding increase in successful forwarding. The main thread adds only
+about 0.7 cycle per packet, making the all-in value about 172 cycles per
+packet; it consumes less than 1% of its 4.1 GHz core and does not explain the
+plateau.
 
 The physical link is not the explanation. The active CX6 port negotiated
 100 Gb/s full duplex, so receive and transmit do not share one 100 Gb/s
@@ -194,7 +206,11 @@ including the frame check sequence, plus 8 bytes of preamble and start-frame
 delimiter and a 12-byte inter-packet gap.
 The resulting per-direction ceiling is about 149 Mpps. Forwarding 47.6 Mpps
 therefore consumes only about 32 Gb/s of serialized link capacity in each
-direction.
+direction. As an independent hardware control, NVIDIA's DPDK 25.03 report
+reaches 148.8 Mpps at zero loss on one 100 Gb/s ConnectX-6 Dx port using 12
+L3-forwarding cores. That is not a software comparison with our VPP test, but
+it confirms that neither the port nor the NIC has an inherent 48-Mpps limit
+([NVIDIA DPDK 25.03 performance report](https://fast.dpdk.org/doc/perf/DPDK_25_03_NVIDIA_NIC_performance_report.pdf)).
 
 Nor is the injector the limit. During overloaded controls the DUT's physical
 counter received 87–99 Mpps while VPP forwarded 46–51 Mpps; the excess became
@@ -202,21 +218,31 @@ RX-buffer discards because the worker could not drain it. All four RX queues
 advanced with an approximately equal share. Measured PCIe ingress was only
 3.3 GiB/s on the negotiated PCIe Gen4 x16 link, and PAUSE remained zero.
 
-These controls locate the retained ceiling in the software datapath. The
-one-worker profile spreads work across IPv4 lookup and rewrite, Ethernet/IP
-input, native RX, TX preparation and completion. With two workers, splitting
-the same four RX queues does not halve the per-packet work. Queue sweeps,
-aggregate cycle counts and vector observations are consistent with a batching
-loss: each worker polls its smaller queue set more frequently, so fixed polling
-and graph-dispatch costs are amortized over fewer packets. The evidence rules
-out a shared TX queue or lock, but does not identify one single instruction as
-the cause.
+The artifacts show where much of that efficiency goes. With one native worker,
+one `rdma-input` invocation collects about 1,013 packets across four queues and
+the downstream L3 vectors are approximately 256 packets. With two workers and
+the same total of four balanced queues, each worker receives only about 3.5
+packets per `rdma-input` call and its L3 vectors average about 67 packets. The
+two-worker DPDK result shows the same downstream effect: roughly 12 packets per
+input call and 69-packet L3 vectors. Fixed polling and graph-dispatch work is
+therefore amortized over much smaller batches.
+
+This measured batching collapse accounts for a substantial part of why the
+extra worker cycles do not translate into proportional L3 throughput. It is
+not evidence of a shared TX queue: each worker has its own TX queue/QP, packet
+and cycle balance is within 1%, and lock sampling is negligible. The profile
+does not assign every lost cycle to one instruction, so the result should be
+described as a VPP polling/batching and graph-scheduling limit in this setup,
+rather than as a fully isolated CX6 hardware defect.
 
 Overload screens did briefly reach roughly 51–52 Mpps physical TX, but only
 with RX loss or `no free tx slots`; they were excluded from the clean sustained
-results. The reported approximately 48 Mpps is therefore a single-port VPP
-L3/CPU ceiling for this graph and queue schedule, not the physical-link or
-ConnectX-6 hardware limit.
+results. Those TX-slot events establish a second boundary in the current
+descriptor/completion lifecycle under overload, but do not prove whether its
+root is completion cadence, doorbell batching or another TX scheduling detail.
+The reported approximately 48 Mpps is therefore the clean point for this VPP
+L3 graph and queue schedule, not the physical-link or ConnectX-6 hardware
+limit.
 
 ## What was tuned
 
@@ -304,10 +330,12 @@ platform points. AF_XDP offers a Linux-native integration model, but its
 kernel work must be included and its current mlx5 zero-copy ownership issue
 must be resolved before these experimental results can be generalized.
 
-Most importantly, cycles per packet connects the tuning work to an observable
-limit. When `cycles/packet × Mpps` reconstructs the CPU frequency, the path to
-more throughput is code efficiency or more effective workers — not a larger
-descriptor ring chosen in isolation.
+Most importantly, cycles per packet must be read together with batching and
+loss counters. For a saturated poll-mode thread, reducing useful work per
+packet can translate into more throughput; for an under-filled or stalled
+poller, the same counter also includes cycles which produced no packet. More
+effective workers require balanced queues *and* useful vectors, not merely a
+second spinning core or a larger descriptor ring.
 
 The complete anonymized data, winning configurations, methodology and chart
 source are available at
@@ -322,9 +350,9 @@ source are available at
   several receive completions compactly.
 - **ConnectX (CX4, CX5, CX6):** NVIDIA/Mellanox ConnectX NIC generations used
   in this study. CX6 refers here to ConnectX-6 Dx.
-- **Cycles per packet:** CPU cycles consumed for each forwarded packet. When a
-  worker is saturated, this value multiplied by packets per second approaches
-  the worker's effective clock rate.
+- **Cycles per packet:** Counted worker CPU cycles divided by successfully
+  forwarded packets. It includes empty polling and stalls; multiplying it by
+  packet rate reconstructs the counted CPU budget, not proof of saturation.
 - **DPDK:** Data Plane Development Kit, a user-space packet-processing
   framework used by VPP through its DPDK plugin.
 - **DPU / BlueField-3 (BF3):** A data processing unit combining Arm CPU cores

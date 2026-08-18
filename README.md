@@ -44,6 +44,8 @@ python3 scripts/plot_results.py
   IRQ/NAPI CPUs and includes their cycles/instructions in the published cost.
 - A lightly loaded VPP main core exists in every configuration and is recorded
   separately where exact counters were retained.
+- In two-worker rows, dataplane cycles/instructions per packet aggregate both
+  workers. The main-thread counters remain separate.
 - Cross-generation Mpps are complete-platform results, not a controlled NIC-only
   comparison; see the CPU rationale in the methodology.
 
