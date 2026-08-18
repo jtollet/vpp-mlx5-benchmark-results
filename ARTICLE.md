@@ -76,7 +76,7 @@ The platforms were chosen to represent where these NICs are commonly found:
 This distinction matters: Mpps describes a complete platform. Cycles per
 packet is the better metric for comparing software efficiency across CPUs.
 
-![Tuned throughput with one and two workers](charts/throughput-scaling.png)
+![Tuned throughput with one and two workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/throughput-scaling.png)
 
 ## Results
 
@@ -148,7 +148,7 @@ and 767 cycles per packet before the small main-thread addition. Those rows
 are useful maximums, but they are not the same CPU budget as two poll-mode
 workers.
 
-![Scaling from one to two workers](charts/worker-scaling.png)
+![Scaling from one to two workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/worker-scaling.png)
 
 ## Why cycles per packet predict throughput
 
@@ -168,7 +168,7 @@ bottleneck, reducing cycles per packet translates almost linearly into more
 packets per second. If Mpps stops scaling while CPU capacity remains, another
 resource has taken over.
 
-![Measured CPU budget reconstructed from cycles and Mpps](charts/cpu-budget.png)
+![Measured CPU budget reconstructed from cycles and Mpps](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
 
 The CX6 is the interesting exception in the scaling chart. One native worker
 already forwards 46.27 Mpps; two workers reach only 47.58 Mpps. We verified
@@ -212,7 +212,8 @@ The full sweep is published with the data, but several lessons generalize:
 
 Representative A/B values, including the DPDK vector/scalar, CQE-compression,
 MPRQ and fast-free controls, are available in
-[`TUNING_EVIDENCE.md`](TUNING_EVIDENCE.md). This is why the results are
+[`TUNING_EVIDENCE.md`](https://github.com/jtollet/vpp-mlx5-benchmark-results/blob/main/TUNING_EVIDENCE.md).
+This is why the results are
 described as “best found in the documented sweep,” rather than as defaults or
 as a mathematically proven global optimum.
 
