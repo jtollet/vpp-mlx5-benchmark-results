@@ -187,18 +187,35 @@ workers reach only 47.6 Mpps because aggregate cost rises to 171 worker cycles
 per packet; two 4.1 GHz cycle budgets divided by that cost predict essentially
 the measured throughput.
 
-The controls locate this ceiling in the software datapath rather than the
-generator, RSS distribution, PAUSE, PCIe Gen4 x16 link or headline NIC packet
-rate. The one-worker profile spreads work across IPv4 lookup and rewrite,
-Ethernet/IP input, native RX, TX preparation and completion. With two workers,
-splitting the same four RX queues does not halve the per-packet work; queue
-sweeps, the aggregate cycle count and profiles point to repeated polling and
-graph-dispatch overhead rather than a shared TX queue or lock. They do not
-identify one single instruction as the cause. Overload screens did briefly
-reach roughly 51–52 Mpps
-physical TX, but only with RX loss or `no free tx slots`; they were excluded
-from the clean sustained results. The reported approximately 48 Mpps is
-therefore a single-port VPP L3/CPU ceiling for this configuration, not the
+The physical link is not the explanation. The active CX6 port negotiated
+100 Gb/s full duplex, so receive and transmit do not share one 100 Gb/s
+budget. A minimum Ethernet frame occupies 84 bytes of link time: 64 bytes
+including the frame check sequence, plus 8 bytes of preamble and start-frame
+delimiter and a 12-byte inter-packet gap.
+The resulting per-direction ceiling is about 149 Mpps. Forwarding 47.6 Mpps
+therefore consumes only about 32 Gb/s of serialized link capacity in each
+direction.
+
+Nor is the injector the limit. During overloaded controls the DUT's physical
+counter received 87–99 Mpps while VPP forwarded 46–51 Mpps; the excess became
+RX-buffer discards because the worker could not drain it. All four RX queues
+advanced with an approximately equal share. Measured PCIe ingress was only
+3.3 GiB/s on the negotiated PCIe Gen4 x16 link, and PAUSE remained zero.
+
+These controls locate the retained ceiling in the software datapath. The
+one-worker profile spreads work across IPv4 lookup and rewrite, Ethernet/IP
+input, native RX, TX preparation and completion. With two workers, splitting
+the same four RX queues does not halve the per-packet work. Queue sweeps,
+aggregate cycle counts and vector observations are consistent with a batching
+loss: each worker polls its smaller queue set more frequently, so fixed polling
+and graph-dispatch costs are amortized over fewer packets. The evidence rules
+out a shared TX queue or lock, but does not identify one single instruction as
+the cause.
+
+Overload screens did briefly reach roughly 51–52 Mpps physical TX, but only
+with RX loss or `no free tx slots`; they were excluded from the clean sustained
+results. The reported approximately 48 Mpps is therefore a single-port VPP
+L3/CPU ceiling for this graph and queue schedule, not the physical-link or
 ConnectX-6 hardware limit.
 
 ## What was tuned
