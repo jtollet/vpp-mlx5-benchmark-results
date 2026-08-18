@@ -273,3 +273,63 @@ descriptor ring chosen in isolation.
 The complete anonymized data, winning configurations, methodology and chart
 source are available at
 [github.com/jtollet/vpp-mlx5-benchmark-results](https://github.com/jtollet/vpp-mlx5-benchmark-results).
+
+## Glossary
+
+- **AF_XDP:** Linux address family for high-speed packet I/O between an XDP
+  program and user space through XSK sockets.
+- **CQ / CQE:** Completion queue / completion queue entry. The NIC uses CQEs
+  to report completed receive and transmit work; CQE compression represents
+  several receive completions compactly.
+- **ConnectX (CX4, CX5, CX6):** NVIDIA/Mellanox ConnectX NIC generations used
+  in this study. CX6 refers here to ConnectX-6 Dx.
+- **Cycles per packet:** CPU cycles consumed for each forwarded packet. When a
+  worker is saturated, this value multiplied by packets per second approaches
+  the worker's effective clock rate.
+- **DPDK:** Data Plane Development Kit, a user-space packet-processing
+  framework used by VPP through its DPDK plugin.
+- **DPU / BlueField-3 (BF3):** A data processing unit combining Arm CPU cores
+  with ConnectX networking hardware. This study runs VPP on the integrated
+  BlueField-3 CPU.
+- **DUT:** Device under test—the system receiving and forwarding the measured
+  traffic.
+- **eMPW:** Enhanced multi-packet WQE, an mlx5 transmit mechanism that packs
+  several compatible packets into one work request.
+- **IRQ / NAPI:** The Linux interrupt and network-polling mechanisms that
+  perform part of the AF_XDP receive work.
+- **L3 forwarding:** IP-layer forwarding. In this test VPP performs IPv4
+  lookup and rewrite, including the normal TTL update.
+- **Mpps:** Millions of packets per second, measured here from physical NIC
+  counters.
+- **MPRQ:** Multi-packet receive queue, a DPDK mlx5 receive mode in which one
+  receive buffer can hold multiple packets.
+- **mbuf fast-free:** A DPDK transmit offload allowing the driver to reclaim
+  eligible packet buffers with fewer per-buffer checks.
+- **NUMA:** Non-uniform memory access. Keeping workers, NIC queues and memory
+  on the same NUMA node avoids remote-memory overhead.
+- **PAUSE / PFC:** Ethernet flow-control mechanisms. Their counters were
+  checked so that flow control could not be mistaken for datapath capacity.
+- **PMD:** Poll-mode driver—the DPDK driver continuously polling NIC queues
+  from user space.
+- **RDMA-DV:** VPP's native mlx5 path built on rdma-core Direct Verbs, giving
+  the plugin direct access to mlx5 queue and descriptor formats.
+- **RSS / Toeplitz:** Receive-side scaling and its commonly used hash. RSS
+  distributes flows over RX queues; balanced input tuples were verified in
+  every multi-queue result.
+- **RX / TX; RXD / TXD:** Receive / transmit; RXD and TXD are the configured
+  receive- and transmit-descriptor ring depths.
+- **UDP64:** UDP traffic carried in minimum-size 64-byte Ethernet frames,
+  including the frame check sequence.
+- **UMEM:** The packet-buffer memory region shared by an AF_XDP application
+  and the kernel.
+- **VPP:** Vector Packet Processing, FD.io's graph-based user-space network
+  dataplane.
+- **Vector:** A batch of packets processed together by a VPP graph node. Larger
+  useful vectors amortize polling, dispatch and function-call overhead.
+- **Worker:** A VPP dataplane thread. VPP also has a low-utilization main
+  thread, accounted for separately where relevant.
+- **WQE:** Work queue element, the descriptor submitted to an mlx5 hardware
+  queue.
+- **XDP / XSK / ZC:** eXpress Data Path; AF_XDP socket; zero-copy mode. In ZC
+  mode packet buffers are transferred between mlx5, the kernel and user space
+  without copying packet contents.
