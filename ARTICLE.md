@@ -8,7 +8,8 @@ common in routers, clouds and storage systems, while BlueField extends the
 same lineage into SmartNICs and DPUs. Their prominence has accelerated with
 AI infrastructure: GPU clusters need high-bandwidth, low-latency network and
 storage fabrics, and DPUs can move infrastructure work away from expensive
-host CPU cores.
+host CPU cores
+([NVIDIA BlueField-3 platform guide](https://networking-docs.nvidia.com/bf3dpu/introduction)).
 
 This article does **not** benchmark an AI collective, a RoCE endpoint or a
 storage endpoint. Its workload is packet forwarding: a small-packet IPv4
