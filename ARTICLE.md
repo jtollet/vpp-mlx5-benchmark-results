@@ -83,21 +83,30 @@ packet is the better metric for comparing software efficiency across CPUs.
 
 The table below uses the same CPU budget for each driver: one or two dataplane
 CPUs. For AF_XDP, mlx5 IRQ/NAPI is colocated with the VPP workers and included
-in the cycles column. A separate maximum-AF control is discussed below.
+in the cycles column. A separate maximum-AF control is discussed below. For
+readability, throughput is rounded to 0.1 Mpps and cycles per packet to the
+nearest cycle; the public CSV retains the measured precision.
 
 | Hardware | Driver | 1 worker Mpps / cycles-pkt | 2 workers Mpps / cycles-pkt | 1→2 scaling |
 |---|---|---:|---:|---:|
-| ConnectX-4 | RDMA-DV | 16.07 / 204.8 | 29.97 / 218.9 | 1.86× |
-|  | DPDK mlx5 | **16.37 / 201.1** | **30.41 / 215.8** | 1.86× |
-|  | AF_XDP ZC, strict | 3.00 / 1098.9 | 3.76 / 1746.5 | 1.25× |
-| ConnectX-5 | RDMA-DV + eMPW | **23.67 / 130.7** | **43.53 / 141.7** | 1.84× |
-|  | DPDK mlx5 | 18.22 / 169.8 | 35.58 / 173.3 | 1.95× |
-|  | AF_XDP ZC, strict | 4.79 / 646.3 | 8.95 / 688.7 | 1.87× |
-| ConnectX-6 Dx | RDMA-DV + eMPW | **46.27 / 88.6** | 47.58 / 171.4 | 1.03× |
-|  | DPDK mlx5 | 36.93 / 111.0 | **47.72 / 171.0** | 1.29× |
-|  | AF_XDP ZC, strict | 9.01 / 454.9 | 13.12 / 624.9 | 1.46× |
-| BlueField-3 | RDMA-DV + eMPW | **14.64 / 136.4** | **26.93 / 148.6** | 1.84× |
-|  | DPDK mlx5 | 10.33 / 193.2 | 21.21 / 188.7 | 2.05× |
+| ConnectX-4 | RDMA-DV | 16.1 / 205 | 30.0 / 219 | 1.9× |
+|  | DPDK mlx5 | **16.4 / 201** | **30.4 / 216** | 1.9× |
+|  | AF_XDP ZC, strict | 3.0 / 1,099 | 3.8 / 1,747 | 1.3× |
+| ConnectX-5 | RDMA-DV + eMPW | **23.7 / 131** | **43.5 / 142** | 1.8× |
+|  | DPDK mlx5 | 18.2 / 170 | 35.6 / 173 | 2.0× |
+|  | AF_XDP ZC, strict | 4.8 / 646 | 9.0 / 689 | 1.9× |
+| ConnectX-6 Dx | RDMA-DV + eMPW | **46.3 / 89** | 47.6 / 171 | 1.0× |
+|  | DPDK mlx5 | 36.9 / 111 | **47.7 / 171** | 1.3× |
+|  | AF_XDP ZC, strict | 9.0 / 455 | 13.1 / 625 | 1.5× |
+| BlueField-3 | RDMA-DV + eMPW | **14.6 / 136** | **26.9 / 149** | 1.8× |
+|  | DPDK mlx5 | 10.3 / 193 | 21.2 / 189 | 2.1× |
+
+AF_XDP was scoped to the discrete ConnectX adapters and was not measured on
+BlueField-3. That is a study-scope decision, not a claim that AF_XDP zero-copy
+is impossible on the DPU. A publishable BlueField result would require the
+same independent checks used on the host NICs: proof that every XSK is
+actually in zero-copy mode, inclusion of IRQ/NAPI CPU consumption, and
+validation of the candidate mlx5 ownership fix on that kernel and driver.
 
 The cycles/packet values above cover the dataplane workers. For strict AF_XDP
 they include kernel work on those CPUs. VPP also has a main core: at two
@@ -108,8 +117,8 @@ dataset.
 The comparison is intentionally factual rather than a verdict against a
 framework. Tuned DPDK is the fastest path on ConnectX-4 and is effectively
 tied with native RDMA on ConnectX-6 Dx at two workers. Native RDMA leads on
-ConnectX-5 and BlueField-3. On the CX6 two-worker run, DPDK's 0.29% higher raw
-mean retained a small PMD RX-miss rate; the native 47.58 Mpps point was clean.
+ConnectX-5 and BlueField-3. On the CX6 two-worker run, DPDK's 0.3% higher raw
+mean retained a small PMD RX-miss rate; the native 47.6 Mpps point was clean.
 
 ### Why the paths differ
 
@@ -135,15 +144,15 @@ has been individually assigned to DPDK.
 The counterexamples are equally important. DPDK wins CX4 because its mature
 CX4 vector/MPW path slightly outperforms native legacy SEND. On CX6 with two
 workers, the stacks converge near 47.6 Mpps and 171 aggregate worker cycles
-per packet: generic VPP graph work and multi-CQ polling dominate enough to
-erase the native advantage seen with one worker. A CX6 one-worker profile
+per packet: the measured aggregate work nearly doubles, erasing the native
+advantage seen with one worker. A CX6 one-worker profile
 assigned about 34.6% of CPU samples to generic IPv4 lookup/rewrite, compared
 with 14.4% to native RX, 10.1% to eMPW preparation and 6.7% to TX
 completion/free. Those numbers bound how much a driver-only optimization can
 improve this particular graph.
 
 AF_XDP can trade more CPUs for more throughput. With two VPP workers and two
-additional IRQ/NAPI CPUs it reached 11.66, 11.81 and 20.95 Mpps on CX4, CX5
+additional IRQ/NAPI CPUs it reached 11.7, 11.8 and 21.0 Mpps on CX4, CX5
 and CX6 respectively. Its all-dataplane cost was approximately 1,229, 1,127
 and 767 cycles per packet before the small main-thread addition. Those rows
 are useful maximums, but they are not the same CPU budget as two poll-mode
@@ -159,10 +168,10 @@ Once a worker is saturated, a simple identity becomes extremely useful:
 cycles/packet × packets/second ≈ cycles/second available from the worker CPU
 ```
 
-For example, the CX5 native result is 130.657 cycles/packet × 23.674 Mpps,
-or about 3.09 billion cycles/second — the observed worker frequency. The CX6
-result is 88.620 × 46.269 Mpps, or about 4.10 GHz. With two workers, the same
-calculation reconstructs the sum of their cycle budgets.
+For example, the underlying CX5 native measurements reconstruct about
+3.1 billion cycles/second — the observed worker frequency. The CX6 result
+similarly reconstructs about 4.1 GHz. With two workers, the same calculation
+reconstructs the sum of their cycle budgets.
 
 This is both a sanity check and a performance model. If the worker remains the
 bottleneck, reducing cycles per packet translates almost linearly into more
@@ -172,14 +181,25 @@ resource has taken over.
 ![Measured CPU budget reconstructed from cycles and Mpps](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
 
 The CX6 is the interesting exception in the scaling chart. One native worker
-already forwards 46.27 Mpps; two workers reach only 47.58 Mpps. We verified
-that the generator could deliver substantially more UDP64 traffic, that RSS
-was balanced, and that PCIe Gen4 x16 bandwidth was far from saturated. The
-one-worker profile showed a CPU execution ceiling spread across IPv4 lookup,
-rewrite, Ethernet/IP input and RDMA RX/TX preparation. With two workers, more
-queues also create more short/empty-CQ polling and dispatch work. This is not
-a 220-Mpps card-limit measurement: it is the ceiling of this single-port VPP
-L3 graph and CPU configuration.
+already forwards 46.3 Mpps at 89 cycles per packet: their product reconstructs
+the worker's 4.1 GHz clock, showing that the core is fully consumed. Two
+workers reach only 47.6 Mpps because aggregate cost rises to 171 worker cycles
+per packet; two 4.1 GHz cycle budgets divided by that cost predict essentially
+the measured throughput.
+
+The controls locate this ceiling in the software datapath rather than the
+generator, RSS distribution, PAUSE, PCIe Gen4 x16 link or headline NIC packet
+rate. The one-worker profile spreads work across IPv4 lookup and rewrite,
+Ethernet/IP input, native RX, TX preparation and completion. With two workers,
+splitting the same four RX queues does not halve the per-packet work; queue
+sweeps, the aggregate cycle count and profiles point to repeated polling and
+graph-dispatch overhead rather than a shared TX queue or lock. They do not
+identify one single instruction as the cause. Overload screens did briefly
+reach roughly 51–52 Mpps
+physical TX, but only with RX loss or `no free tx slots`; they were excluded
+from the clean sustained results. The reported approximately 48 Mpps is
+therefore a single-port VPP L3/CPU ceiling for this configuration, not the
+ConnectX-6 hardware limit.
 
 ## What was tuned
 

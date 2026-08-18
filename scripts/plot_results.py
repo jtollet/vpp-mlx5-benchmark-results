@@ -70,7 +70,7 @@ def throughput_chart(rows):
         ax.grid(axis="y", alpha=0.25)
         ax.set_axisbelow(True)
         if hardware == "BlueField-3":
-            ax.text(0.5, 0.06, "AF_XDP out of scope", transform=ax.transAxes,
+            ax.text(0.5, 0.06, "AF_XDP not measured", transform=ax.transAxes,
                     ha="center", fontsize=8, color=COLORS["AF_XDP ZC"])
     axes[0].set_ylabel("Physical TX throughput (Mpps)")
     handles, labels = axes[0].get_legend_handles_labels()
@@ -94,10 +94,11 @@ def scaling_chart(rows):
         bars = ax.bar(group_x + offset, values, width, color=COLORS[driver], label=driver)
         for bar, value in zip(bars, values):
             if not np.isnan(value):
-                ax.text(bar.get_x() + bar.get_width() / 2, value + 0.025, f"{value:.2f}x",
+                ax.text(bar.get_x() + bar.get_width() / 2, value + 0.025, f"{value:.1f}x",
                         ha="center", va="bottom", fontsize=8, rotation=90)
     ax.axhline(2.0, color="#444444", linestyle="--", linewidth=1, label="ideal 2x")
-    ax.set_ylim(0, 2.25)
+    ax.set_ylim(0, 2.2)
+    ax.set_yticks(np.arange(0, 2.1, 0.5))
     ax.set_ylabel("Two-worker / one-worker throughput")
     ax.set_xticks(group_x, HARDWARE)
     ax.set_title("Scaling depends on where the one-worker bottleneck sits")
@@ -130,7 +131,7 @@ def cpu_budget_chart(rows):
             for bar, value in zip(bars, values):
                 if not np.isnan(value):
                     ax.text(bar.get_x() + bar.get_width() / 2, value,
-                            f"{value:.2f}", ha="center", va="bottom",
+                            f"{value:.1f}", ha="center", va="bottom",
                             fontsize=7, rotation=90)
         ax.set_title(hardware)
         ax.set_xticks(x, ["1 worker", "2 workers"])
