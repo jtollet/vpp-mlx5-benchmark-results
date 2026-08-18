@@ -63,10 +63,12 @@ Cycles and instructions were collected with Linux perf:
 ## Software
 
 The final native-driver tree corresponds to a VPP 26.10 development snapshot
-with DPDK 26.03 and rdma-core 62.0. Native eMPW results use the change under
-review as [VPP 46465](https://gerrit.fd.io/r/c/vpp/+/46465), plus its published
-dependencies. ConnectX-4 does not expose enhanced MPW and therefore exercises
-the legacy SEND path.
+with DPDK 26.03 and rdma-core 62.0. The complete public review chain is
+documented in [`VPP_CHANGES.md`](VPP_CHANGES.md): VPP changes 45505, 46155,
+46465 and 46506. Native eMPW results use change 46465 and its dependencies.
+ConnectX-4 does not expose enhanced MPW and therefore exercises the legacy
+SEND path. Change 46506 was validated separately but was not present in the
+retained performance figures and had no measurable performance effect.
 
 AF_XDP results use forced `XDP_ZEROCOPY`; every retained socket reported the
 kernel `XDP_OPTIONS_ZEROCOPY` flag. They also use a temporary candidate mlx5

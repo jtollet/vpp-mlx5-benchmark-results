@@ -1,14 +1,21 @@
-# Optimizing User-Space Networking Performance with VPP and NVIDIA/Mellanox NICs
+# Optimizing VPP Packet Forwarding on NVIDIA ConnectX NICs and BlueField DPUs
 
-*A tuned comparison of native RDMA-DV, DPDK and AF_XDP across ConnectX-4,
-ConnectX-5, ConnectX-6 Dx and BlueField-3.*
+*A tuned RDMA-DV, DPDK and AF_XDP comparison from ConnectX-4 to ConnectX-6 Dx
+and BlueField-3.*
 
 NVIDIA ConnectX adapters — still widely known by the Mellanox name — are
-common in routers, clouds, storage systems and DPUs. Their popularity is easy
-to explain: one hardware family spans several generations, speeds and host
-architectures. Using one efficiently from VPP, however, presents a less
-obvious choice. The same NIC can be driven through VPP's native RDMA plugin,
-through the DPDK mlx5 PMD, or through Linux AF_XDP.
+common in routers, clouds and storage systems, while BlueField extends the
+same lineage into SmartNICs and DPUs. Their prominence has accelerated with
+AI infrastructure: GPU clusters need high-bandwidth, low-latency network and
+storage fabrics, and DPUs can move infrastructure work away from expensive
+host CPU cores.
+
+This article does **not** benchmark an AI collective, a RoCE endpoint or a
+storage endpoint. Its workload is packet forwarding: a small-packet IPv4
+datapath representative of routers, gateways and infrastructure services that
+surround those endpoints. Using this hardware efficiently from VPP presents a
+less obvious choice. The same NIC or DPU port can be driven through VPP's
+native RDMA plugin, through the DPDK mlx5 PMD, or through Linux AF_XDP.
 
 All three are valid engineering choices. They differ in integration model,
 tuning controls and CPU accounting. This study asks a practical question:
@@ -103,6 +110,37 @@ tied with native RDMA on ConnectX-6 Dx at two workers. Native RDMA leads on
 ConnectX-5 and BlueField-3. On the CX6 two-worker run, DPDK's 0.29% higher raw
 mean retained a small PMD RX-miss rate; the native 47.58 Mpps point was clean.
 
+### Why the paths differ
+
+The instruction counters give the strongest driver-level evidence. With two
+workers on CX5, native RDMA executes 332 instructions per successful packet
+versus 457 for tuned DPDK, a 27% reduction. On BlueField-3 the figures are 350
+versus 459, a 24% reduction. Both DPDK runs were confirmed on vector RX and
+the `mlx5_tx_burst_sc_empw` enhanced-MPW transmit function, while native eMPW
+was active too. This is therefore not an eMPW-versus-legacy-SEND comparison.
+
+The VPP source explains why an instruction delta is plausible. The DPDK input
+node converts PMD-provided `rte_mbuf` metadata into `vlib_buffer_t` metadata,
+and its output node prepares mbuf state before entering the generic ethdev/PMD
+path. The native plugin receives directly into VPP buffers and consumes CQEs
+or writes WQEs without that framework boundary
+([DPDK input](https://github.com/FDio/vpp/blob/master/src/plugins/dpdk/device/node.c),
+[DPDK output](https://github.com/FDio/vpp/blob/master/src/plugins/dpdk/device/device.c),
+[native RX](https://github.com/FDio/vpp/blob/master/src/plugins/rdma/input.c),
+[native TX](https://github.com/FDio/vpp/blob/master/src/plugins/rdma/output.c)).
+This is an architectural explanation, not a claim that every extra instruction
+has been individually assigned to DPDK.
+
+The counterexamples are equally important. DPDK wins CX4 because its mature
+CX4 vector/MPW path slightly outperforms native legacy SEND. On CX6 with two
+workers, the stacks converge near 47.6 Mpps and 171 aggregate worker cycles
+per packet: generic VPP graph work and multi-CQ polling dominate enough to
+erase the native advantage seen with one worker. A CX6 one-worker profile
+assigned about 34.6% of CPU samples to generic IPv4 lookup/rewrite, compared
+with 14.4% to native RX, 10.1% to eMPW preparation and 6.7% to TX
+completion/free. Those numbers bound how much a driver-only optimization can
+improve this particular graph.
+
 AF_XDP can trade more CPUs for more throughput. With two VPP workers and two
 additional IRQ/NAPI CPUs it reached 11.66, 11.81 and 20.95 Mpps on CX4, CX5
 and CX6 respectively. Its all-dataplane cost was approximately 1,229, 1,127
@@ -172,6 +210,12 @@ The full sweep is published with the data, but several lessons generalize:
   coalescing and IRQ placement were all relevant. Deep rings and more buffers
   did not monotonically improve its overload behavior.
 
+Representative A/B values, including the DPDK vector/scalar, CQE-compression,
+MPRQ and fast-free controls, are available in
+[`TUNING_EVIDENCE.md`](TUNING_EVIDENCE.md). This is why the results are
+described as “best found in the documented sweep,” rather than as defaults or
+as a mathematically proven global optimum.
+
 ## Two issues uncovered by the work
 
 First, sustained AF_XDP zero-copy overload exposed evidence consistent with
@@ -190,6 +234,19 @@ enhanced-MPW capability and remains on legacy SEND. The implementation is
 currently under review as
 [VPP change 46465](https://gerrit.fd.io/r/c/vpp/+/46465), so the results are a
 preview of review code rather than a released-version claim.
+
+For completeness, the tested VPP review chain contains four public changes:
+
+- [45505](https://gerrit.fd.io/r/c/vpp/+/45505): mlx5 DV TSO support and TX
+  completion/WQE accounting. It is the parent of eMPW; UDP64 does not exercise
+  TSO.
+- [46155](https://gerrit.fd.io/r/c/vpp/+/46155): correct verbs-port selection,
+  a setup/correctness fix rather than a dataplane optimization.
+- [46465](https://gerrit.fd.io/r/c/vpp/+/46465): eMPW, material to the native
+  CX5/CX6/BF3 results.
+- [46506](https://gerrit.fd.io/r/c/vpp/+/46506): RX CQ doorbell byte order,
+  independently validated but absent from the retained figures and measured
+  as performance-neutral.
 
 ## Takeaways
 

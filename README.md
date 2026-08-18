@@ -1,7 +1,7 @@
 # VPP on NVIDIA/Mellanox NICs: anonymized benchmark data
 
-This repository accompanies the article **“Optimizing User-Space Networking
-Performance with VPP and NVIDIA/Mellanox NICs.”** It contains the curated,
+This repository accompanies the article **“Optimizing VPP Packet Forwarding
+on NVIDIA ConnectX NICs and BlueField DPUs.”** It contains the curated,
 anonymized results behind a tuned comparison of:
 
 - VPP native RDMA-DV;
@@ -15,7 +15,9 @@ The workload is 64-byte IPv4/UDP L3 forwarding with one and two VPP workers.
 
 - [`ARTICLE.md`](ARTICLE.md): Medium-ready article.
 - [`METHODOLOGY.md`](METHODOLOGY.md): workload, accounting and parameter search.
+- [`TUNING_EVIDENCE.md`](TUNING_EVIDENCE.md): representative A/B screens, including non-default DPDK tuning.
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md): AF_XDP candidate fix and native eMPW status.
+- [`VPP_CHANGES.md`](VPP_CHANGES.md): every VPP Gerrit change in the tested review chain and its actual relevance.
 - [`patches/mlx5-af-xdp-rx-full-ownership-candidate.patch`](patches/mlx5-af-xdp-rx-full-ownership-candidate.patch):
   exact diagnostic RFC candidate used for the AF_XDP stress validation.
 - [`data/results.csv`](data/results.csv): throughput and CPU cost.
