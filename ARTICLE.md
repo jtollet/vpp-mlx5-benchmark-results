@@ -18,6 +18,13 @@ surround those endpoints. Using this hardware efficiently from VPP presents a
 less obvious choice. The same NIC or DPU port can be driven through VPP's
 native RDMA plugin, through the DPDK mlx5 PMD, or through Linux AF_XDP.
 
+The native plugin has two datapaths, plus an automatic selection mode:
+`ibv` uses the generic libibverbs interface and is retained primarily as a
+compatibility path, while `dv` uses mlx5 Direct Verbs to expose the
+device-specific fast path. Because this study targets the best forwarding
+performance available from ConnectX and BlueField hardware, every native
+result below explicitly uses `mode dv`; `ibv` is not benchmarked.
+
 All three are valid engineering choices. They differ in integration model,
 tuning controls and CPU accounting. This study asks a practical question:
 **what is the best 64-byte L3 forwarding performance we can obtain from each
@@ -295,6 +302,10 @@ source are available at
   traffic.
 - **eMPW:** Enhanced multi-packet WQE, an mlx5 transmit mechanism that packs
   several compatible packets into one work request.
+- **IBV / DV:** The native VPP plugin's two datapaths. IBV uses the generic
+  libibverbs interface as a compatibility path; DV uses mlx5 Direct Verbs.
+  An `auto` setting selects between them. All native results in this article
+  explicitly use DV.
 - **IRQ / NAPI:** The Linux interrupt and network-polling mechanisms that
   perform part of the AF_XDP receive work.
 - **L3 forwarding:** IP-layer forwarding. In this test VPP performs IPv4
@@ -311,8 +322,8 @@ source are available at
   checked so that flow control could not be mistaken for datapath capacity.
 - **PMD:** Poll-mode driver—the DPDK driver continuously polling NIC queues
   from user space.
-- **RDMA-DV:** VPP's native mlx5 path built on rdma-core Direct Verbs, giving
-  the plugin direct access to mlx5 queue and descriptor formats.
+- **RDMA-DV:** The DV mode of VPP's native RDMA plugin, giving it direct access
+  to mlx5 queue and descriptor formats through rdma-core.
 - **RSS / Toeplitz:** Receive-side scaling and its commonly used hash. RSS
   distributes flows over RX queues; balanced input tuples were verified in
   every multi-queue result.
