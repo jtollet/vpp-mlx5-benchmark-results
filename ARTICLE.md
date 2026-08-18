@@ -18,13 +18,6 @@ surround those endpoints. Using this hardware efficiently from VPP presents a
 less obvious choice. The same NIC or DPU port can be driven through VPP's
 native RDMA plugin, through the DPDK mlx5 PMD, or through Linux AF_XDP.
 
-The native plugin has two datapaths, plus an automatic selection mode:
-`ibv` uses the generic libibverbs interface and is retained primarily as a
-compatibility path, while `dv` uses mlx5 Direct Verbs to expose the
-device-specific fast path. Because this study targets the best forwarding
-performance available from ConnectX and BlueField hardware, every native
-result below explicitly uses `mode dv`; `ibv` is not benchmarked.
-
 All three are valid engineering choices. They differ in integration model,
 tuning controls and CPU accounting. This study asks a practical question:
 **what is the best 64-byte L3 forwarding performance we can obtain from each
@@ -192,6 +185,10 @@ L3 graph and CPU configuration.
 
 The full sweep is published with the data, but several lessons generalize:
 
+- **Native mode was explicit.** The plugin also provides a generic
+  libibverbs (`ibv`) compatibility path and an automatic selection mode. As
+  this is a peak-performance study of mlx5 hardware, every native result used
+  `mode dv`; the article does not compare DV with IBV.
 - **Queue count is not worker count.** CX6 native needed four RX queues for
   one worker and four for two workers. CX5 and BlueField generally preferred
   one queue per worker. More queues can improve batching, or waste cycles
