@@ -1,5 +1,10 @@
 # What RDMA-DV buys VPP on NVIDIA ConnectX and BlueField
 
+> **Investigation draft — do not publish or cite.** The ConnectX-6 native
+> RDMA-DV scale-out result is under active requalification. Its current
+> plateau is treated as a benchmark/dispatch symptom, not as representative
+> hardware or datapath performance.
+
 *True 64-byte IPv4 forwarding shows a lean native fast path, a queue-scaling
 lesson on ConnectX-6, and the real CPU price of AF_XDP zero-copy.*
 

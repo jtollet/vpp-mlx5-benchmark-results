@@ -1,5 +1,9 @@
 # VPP on NVIDIA ConnectX and BlueField: anonymized benchmark data
 
+> **Status: investigation draft. Do not publish or cite the article yet.**
+> ConnectX-6 native RDMA-DV dispatch and queue scaling are being requalified;
+> the current scale-out values are retained only as diagnostic observations.
+
 This repository accompanies the draft article **“What RDMA-DV buys VPP on
 NVIDIA ConnectX and BlueField.”** It archives a tuned comparison
 of VPP native RDMA-DV, VPP/DPDK mlx5 and VPP/AF_XDP native zero-copy for true
