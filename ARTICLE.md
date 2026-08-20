@@ -34,11 +34,8 @@ physical port**. Every successful packet performs IPv4 lookup, TTL decrement,
 checksum update, adjacency rewrite and physical retransmission. This is not an
 RDMA endpoint workload, an RX-only loop or a two-port wire.
 
-Every retained run proves the frame size from NIC counters. The generator
-provides 60 bytes and the NIC appends the four-byte FCS; source and DUT both
-report exactly 64.000 physical bytes per packet. Earlier experiments using VPP
-PG `size 64` actually produced 68-byte MAC frames and are excluded from the
-result matrix.
+NIC counters confirm that every retained result uses 64-byte Ethernet frames;
+non-comparable 68-byte experiments are excluded.
 
 Throughput is the DUT's successful physical TX delta. It is not VPP's TX
 attempt counter. Finals are three independent 20-second windows. Main and
