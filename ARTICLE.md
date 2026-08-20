@@ -34,8 +34,7 @@ physical port**. Every successful packet performs IPv4 lookup, TTL decrement,
 checksum update, adjacency rewrite and physical retransmission. This is not an
 RDMA endpoint workload, an RX-only loop or a two-port wire.
 
-NIC counters confirm that every retained result uses 64-byte Ethernet frames;
-non-comparable 68-byte experiments are excluded.
+NIC counters confirm that every retained result uses 64-byte Ethernet frames.
 
 Throughput is the DUT's successful physical TX delta. It is not VPP's TX
 attempt counter. Finals are three independent 20-second windows. Main and
