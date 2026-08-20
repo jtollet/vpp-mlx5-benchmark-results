@@ -15,32 +15,38 @@ means maximum forwarding under pressure, not zero-loss NDR.
 
 CX4 does not advertise eMPW, so native RDMA-DV uses legacy SEND. One- and
 two-worker winners are q2/RXD2048/TXD2048. DPDK independently selects
-q1/RXD1024/TXD2048 at one worker and q2/RXD1024/TXD2048 at two.
+q1/RXD1024/TXD2048 at one worker and q2/RXD1024/TXD2048 at two. At three
+workers, RDMA-DV selects q3/RXD1024/TXD2048 and four QPs including an inactive
+main QP. DPDK selects q3/RXD2048/TXD2048 and four TXQs including inactive
+main TXQ0.
 
-| Path | 1W | 2W | 4W | 4W qualification |
+| Path | 1W | 2W | 3W | 3W qualification |
 |---|---:|---:|---:|---|
-| RDMA-DV | 15.803 Mpps / 206.6 cpp | 28.983 / 225.3 | 42.821 / 304.8 | q4; spread ≤0.007%; source-limited |
-| DPDK | 16.349 / 199.6 | 30.141 / 216.7 | 42.818 / 304.9 | q4; main TXQ0 inactive; source-limited |
-| AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | 20.039 / 1416.9 | q4; four IRQ CPUs; ZC4; spread ≤0.011% |
+| RDMA-DV | 15.803 Mpps / 206.6 cpp | 28.983 / 225.3 | 42.166+ / 232.2 | q3; RXQ spread ≤0.159%; source-limited |
+| DPDK | 16.349 / 199.6 | 30.141 / 216.7 | 42.213+ / 231.9 | q3; TXQ0 inactive; RXQ spread ≤0.593%; source-limited |
+| AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | — | not measured at 3W |
 
-The poll-mode 4W source stopped at about 42.82 Mpps. Those two rows are lower
-bounds, and their cycles include idle polling at the source ceiling. q8/q16
-were screened; they did not establish a higher source-independent DUT rate.
+Each 3W winner is a fresh-source 3×20-second result. The final source means
+were 42.205 Mpps for RDMA-DV and 42.214 Mpps for DPDK; a synchronized source
+revalidation reached 42.634 Mpps. Both DUT rates are therefore source-limited
+lower bounds, and their cycles include idle polling at the offered boundary.
+All three RX queues are active and balanced. Native main TQ0 and DPDK TXQ0
+remain inactive; the three worker QPs/TXQs exclusively carry the traffic.
 
-A direct-PF XL710 control confirms the source boundary. True64 produced
-42.681/42.672/42.676 Mpps (mean 42.676), while true128 produced 33.834 Mpps,
-34.646 Gbit/s of frame bytes and 40.060 Gbit/s after wire overhead. Thus the
-source reaches 40-Gbit/s line rate with larger frames but not the true64 packet
-rate required to move the 4W lower bound. The control used NVM 7.00,
-management firmware 7.1, Linux i40e from the 6.8 kernel and DPDK 24.11.1; no
-firmware update was performed during the benchmark.
+The synchronized direct-PF revalidation measured 42.634 Mpps source TX and
+42.640 Mpps at the CX4 physical RX counter. A separate true128 control reached
+40.060 Gbit/s after wire overhead. Thus the source reaches 40-Gbit/s line rate
+with larger frames but not the true64 packet rate required to move the 3W
+lower bound. The controls used NVM 7.00, management firmware 7.1, Linux i40e
+from the 6.8 kernel and DPDK 24.11.1; no firmware update was performed during
+the benchmark.
 
-AF_XDP q4 beats q8. A 23.514-Mpps overload diagnostic is rejected because its
-successful redirects vary 1.58–2.53% and the legacy driver exposes only
-aggregate misses. The retained balanced point forwards 20.039 Mpps, reports
-`zc:1` on all four XSKs and has zero queue-full, PAUSE or physical error. Its
-10k–25k aggregate `rx_out_of_buffer` events per window keep the classification
-at maximum-balanced rather than NDR.
+Historical four-worker runs remain diagnostic artifacts only and do not feed
+the article table, public CSV or main charts. They also stopped at the source
+boundary (42.821/42.818 Mpps for RDMA-DV/DPDK), so adding a fourth worker did
+not establish either DUT ceiling. A separate four-XSK AF_XDP experiment is
+likewise excluded from the headline matrix; no three-worker AF_XDP final was
+run, and no four-worker result is substituted for it.
 
 ## ConnectX-5
 

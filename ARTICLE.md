@@ -61,30 +61,28 @@ The compact table reports `Mpps / dataplane cycles per packet`. AF_XDP uses
 its maximum layout; `+N IRQ` records additional kernel dataplane CPUs. A dash
 means that topology was outside the retained final matrix, not zero throughput.
 
-| Platform | Datapath | 1 worker | 2 workers | 4 workers |
+| Platform | Datapath | 1 worker | 2 workers | Scale-out point |
 |---|---|---:|---:|---:|
-| ConnectX-4 | RDMA-DV, legacy SEND | 15.8 / 207 | 29.0 / 225 | 42.8+ / 305 |
-|  | DPDK mlx5 | 16.3 / 200 | 30.1 / 217 | 42.8+ / 305 |
-|  | AF_XDP ZC maximum | 6.1 / 1,160 +1 IRQ | 11.8 / 1,211 +2 IRQ | 20.0 / 1,417 +4 IRQ |
-| ConnectX-5 | RDMA-DV + eMPW | **24.3 / 127** | **45.4 / 136** | **60.6 / 203** |
-|  | DPDK mlx5 | 19.0 / 163 | 36.4 / 170 | 55.1 / 224 |
-|  | AF_XDP ZC maximum | 6.4 / 1,042 +1 IRQ | 12.4 / 1,071 +2 IRQ | 14.0 / 1,688 +4 IRQ |
-| ConnectX-6 Dx | RDMA-DV + eMPW | **45.4 / 90** | 52.8 / 155 | 53.2 / 307 |
-|  | DPDK mlx5, tuned TXQ mapping | 34.8 / 117 | **55.0 / 149** | **101.2 / 162** |
+| ConnectX-4 | RDMA-DV, legacy SEND | 15.8 / 207 | 29.0 / 225 | 3W: 42.2+ / 232 |
+|  | DPDK mlx5 | 16.3 / 200 | 30.1 / 217 | 3W: 42.2+ / 232 |
+|  | AF_XDP ZC maximum | 6.1 / 1,160 +1 IRQ | 11.8 / 1,211 +2 IRQ | — |
+| ConnectX-5 | RDMA-DV + eMPW | **24.3 / 127** | **45.4 / 136** | 4W: **60.6 / 203** |
+|  | DPDK mlx5 | 19.0 / 163 | 36.4 / 170 | 4W: 55.1 / 224 |
+|  | AF_XDP ZC maximum | 6.4 / 1,042 +1 IRQ | 12.4 / 1,071 +2 IRQ | 4W: 14.0 / 1,688 +4 IRQ |
+| ConnectX-6 Dx | RDMA-DV + eMPW | **45.4 / 90** | 52.8 / 155 | 4W: 53.2 / 307 |
+|  | DPDK mlx5, tuned TXQ mapping | 34.8 / 117 | **55.0 / 149** | 4W: **101.2 / 162** |
 |  | AF_XDP ZC maximum | 17.8 / 758 +4 IRQ | 33.4 / 619 +4 IRQ | — |
-| BlueField-3 | RDMA-DV + eMPW | **14.2 / 140** | **27.2 / 147** | **55.3 / 144** |
-|  | DPDK mlx5 | 10.3 / 195 | 21.0 / 190 | 42.2 / 189 |
+| BlueField-3 | RDMA-DV + eMPW | **14.2 / 140** | **27.2 / 147** | 4W: **55.3 / 144** |
+|  | DPDK mlx5 | 10.3 / 195 | 21.0 / 190 | 4W: 42.2 / 189 |
 
-CX4's four-worker generator stopped at 42.8 Mpps, so its equal RDMA/DPDK
-values are lower bounds. They do not prove that either DUT path stops there.
-An isolated XL710 physical-function control reproduced a 42.676-Mpps true64
-ceiling, while true128 reached 40.060 Gbit/s on the wire. The source can fill
-the 40-Gbit/s link with larger frames; its small-packet rate is the constraint.
-This source limit does **not** apply to the two-worker points: the generator
-offered 42.78--42.80 Mpps while the CX4 physically retransmitted 28.98 Mpps
-with RDMA-DV and 30.14 Mpps with DPDK. Those are measured DUT forwarding
-rates with substantial source headroom; only the four-worker poll-mode points
-carry the `+` lower-bound marker.
+CX4 reaches the traffic source at three workers. The fresh-source
+revalidation delivered 42.63 Mpps, while the three final windows offered a
+mean 42.21 Mpps and the DUT retransmitted 42.17 Mpps with RDMA-DV and 42.21
+Mpps with DPDK. Both 3W values are therefore lower bounds; they do not prove
+that either DUT path stops there. This source limit does **not** apply to the
+two-worker points: the generator offered about 42.8 Mpps while the CX4
+physically retransmitted 28.98 Mpps with RDMA-DV and 30.14 Mpps with DPDK.
+AF_XDP was not measured at three workers, so its scale-out cell remains blank.
 AF_XDP was not measured on BF3 by study scope; this is not a capability claim.
 
 ## Why RDMA-DV is the compelling default
@@ -103,11 +101,12 @@ and 23.7% fewer worker cycles at one, two and four workers. On CX6 at one worker
 and uses about 23% fewer worker cycles.
 
 CX4 is the useful counterexample. Without eMPW, tuned DPDK is 3.5% and 4.0%
-faster at one and two workers. At four workers the source limit hides any DUT
-difference. CX6 is the other kind of counterexample: at two workers, tuned
-DPDK reaches 55.0 Mpps and 149 cycles per packet versus RDMA-DV at 52.8 Mpps
-and 155 cycles, before the multi-TXQ gap widens further. The defensible
-conclusion is therefore not “DV always wins.” It is stronger and more useful:
+faster at one and two workers. At three workers the source limit hides any DUT
+difference: both paths forward essentially the full offered load at about 232
+worker cycles per successful packet. CX6 is the other kind of counterexample:
+at two workers, tuned DPDK reaches 55.0 Mpps and 149 cycles per packet versus
+RDMA-DV at 52.8 Mpps and 155 cycles, before the multi-TXQ gap widens further.
+The defensible conclusion is therefore not “DV always wins.” It is stronger and more useful:
 **when the hardware exposes the batching capability, DV gives VPP an
 unusually efficient low-core fast path.**
 

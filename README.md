@@ -13,12 +13,14 @@ of VPP native RDMA-DV, VPP/DPDK mlx5 and VPP/AF_XDP native zero-copy for true
 
 All numeric cells were repeated on the frozen exact VPP review tree. RDMA-DV
 and DPDK have qualified one- and two-worker rows on all four platforms.
-Four-worker rows are complete on ConnectX-4, ConnectX-5 and BlueField-3. Both ConnectX-6
-RDMA-DV and DPDK are qualified from one through six workers, with explicit
-main/worker QP or TXQ ownership and balanced RX placement. ConnectX-4
-four-worker poll-mode rows are explicitly source-limited lower bounds.
-BlueField-3 four-worker RDMA-DV and DPDK cells are qualified. AF_XDP is complete on the three discrete
-ConnectX adapters and not measured on BlueField-3 by study scope.
+ConnectX-4 RDMA-DV and DPDK are qualified at one, two and three workers; both
+three-worker points are source-limited lower bounds. ConnectX-4 AF_XDP is
+published only at one and two workers. ConnectX-5 and BlueField-3 have
+qualified four-worker rows. Both ConnectX-6 RDMA-DV and DPDK are qualified
+from one through six workers, with explicit main/worker QP or TXQ ownership
+and balanced RX placement. AF_XDP is complete at the retained worker counts
+on the three discrete ConnectX adapters and not measured on BlueField-3 by
+study scope.
 
 AF_XDP measurements are complete for the submitted mlx5 `[PATCH net v2]`
 build. Applying them to an upstream kernel remains provisional while that fix

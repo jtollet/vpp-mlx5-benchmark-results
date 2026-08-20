@@ -50,7 +50,7 @@ def check_article_matrix(
     """Keep the compact, hand-edited article table synchronized with the CSV."""
 
     text = ARTICLE.read_text(encoding="utf-8")
-    start = text.index("| Platform | Datapath | 1 worker | 2 workers | 4 workers |")
+    start = text.index("| Platform | Datapath | 1 worker | 2 workers | Scale-out point |")
     end = text.index("\n\n", start)
     lines = [line for line in text[start:end].splitlines()[2:] if line.startswith("|")]
     matrix: dict[tuple[str, str], list[str]] = {}
@@ -71,7 +71,8 @@ def check_article_matrix(
 
     for (hardware, driver), cells in matrix.items():
         profile = "maximum" if driver == "AF_XDP ZC" else "primary"
-        for index, workers in enumerate((1, 2, 4)):
+        scale_workers = 3 if hardware == "ConnectX-4" else 4
+        for index, workers in enumerate((1, 2, scale_workers)):
             result = result_by_key.get((hardware, driver, profile, str(workers)))
             cell = cells[index]
             if not result or result["status"] not in FINAL_STATUSES:
@@ -80,7 +81,7 @@ def check_article_matrix(
                 )
                 continue
             mpps = f"{float(result['throughput_mpps']):.1f}"
-            if hardware == "ConnectX-4" and workers == 4 and driver != "AF_XDP ZC":
+            if hardware == "ConnectX-4" and workers == 3 and driver != "AF_XDP ZC":
                 mpps += "+"
             cpp = f"{float(result['dataplane_cycles_per_packet']):,.0f}"
             assert f"{mpps} / {cpp}" in cell, (
@@ -141,8 +142,13 @@ def main() -> None:
         if hardware == "ConnectX-6 Dx" and driver == "DPDK mlx5":
             assert configuration["buffers"] == "262144", f"wrong CX6 DPDK pool: {cell}"
 
+    assert not any(
+        result["hardware"] == "ConnectX-4" and result["workers"] == "4"
+        for result in results
+    ), "CX4 4W must stay outside the public headline dataset"
+
     for driver in ("RDMA-DV", "DPDK mlx5"):
-        cell = "ConnectX-4", driver, "primary", "4"
+        cell = "ConnectX-4", driver, "primary", "3"
         assert "source-limited" in result_by_key[cell]["qualification"], cell
 
     check_article_matrix(result_by_key)

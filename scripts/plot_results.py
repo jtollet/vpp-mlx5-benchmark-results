@@ -30,7 +30,7 @@ COLORS = {
     "AF_XDP ZC": "#d96b47",
 }
 MARKERS = {"RDMA-DV": "o", "DPDK mlx5": "s", "AF_XDP ZC": "^"}
-CX4_SOURCE_CEILING_MPPS = 42.8
+CX4_SOURCE_REVALIDATION_MPPS = 42.634
 NUMERIC = {
     "workers",
     "extra_irq_cpus",
@@ -81,7 +81,15 @@ def find(rows, hardware: str, driver: str, workers: int):
 
 def save(fig, stem: str):
     CHARTS.mkdir(exist_ok=True)
-    fig.savefig(CHARTS / f"{stem}.svg", bbox_inches="tight")
+    svg = CHARTS / f"{stem}.svg"
+    fig.savefig(svg, bbox_inches="tight")
+    # Matplotlib emits trailing spaces in path data.  Normalize generated
+    # text so repository whitespace checks remain useful.
+    svg.write_text(
+        "\n".join(line.rstrip() for line in svg.read_text(encoding="utf-8").splitlines())
+        + "\n",
+        encoding="utf-8",
+    )
     fig.savefig(CHARTS / f"{stem}.png", dpi=220, bbox_inches="tight")
     plt.close(fig)
 
@@ -108,13 +116,12 @@ def throughput_chart(rows):
                 label=LABELS[driver],
             )
             for workers, value in zip(x, y):
-                suffix = "+" if hardware == "ConnectX-4" and workers == 4 and driver != "AF_XDP ZC" else ""
+                suffix = "+" if hardware == "ConnectX-4" and workers == 3 and driver != "AF_XDP ZC" else ""
                 # Keep nearby low-rate series readable.  Native labels sit
                 # above the marker, while DPDK and AF_XDP use two different
                 # offsets below it.  This is especially important for CX4,
-                # where the two poll-mode 4W lower bounds are effectively
-                # identical and the AF_XDP point is close enough for the old
-                # labels to overlap.
+                # where the two poll-mode 3W lower bounds are effectively
+                # identical.
                 y_offset = -14 if driver == "DPDK mlx5" else -5 if driver == "AF_XDP ZC" else 8
                 x_offset = -11 if driver == "RDMA-DV" else 11 if driver == "DPDK mlx5" else 0
                 ax.annotate(
@@ -129,15 +136,15 @@ def throughput_chart(rows):
                 )
         if hardware == "ConnectX-4":
             ax.axhline(
-                CX4_SOURCE_CEILING_MPPS,
+                CX4_SOURCE_REVALIDATION_MPPS,
                 color="#555555",
                 linewidth=1.5,
                 linestyle=(0, (4, 3)),
                 zorder=0,
             )
             ax.annotate(
-                f"Measured injection ceiling ≈ {CX4_SOURCE_CEILING_MPPS:.1f} Mpps",
-                xy=(0.68, CX4_SOURCE_CEILING_MPPS),
+                f"Fresh-source revalidation: {CX4_SOURCE_REVALIDATION_MPPS:.1f} Mpps",
+                xy=(0.68, CX4_SOURCE_REVALIDATION_MPPS),
                 xytext=(0, 7),
                 textcoords="offset points",
                 ha="left",
@@ -147,8 +154,11 @@ def throughput_chart(rows):
                 bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.82, "pad": 1.5},
             )
         ax.set_title(hardware, fontweight="bold")
-        ax.set_xticks([1, 2, 4, 5, 6])
-        ax.set_xlim(0.6, 6.35 if hardware == "ConnectX-6 Dx" else 4.35)
+        ax.set_xticks([1, 2, 3] if hardware == "ConnectX-4" else [1, 2, 4, 5, 6])
+        ax.set_xlim(
+            0.6,
+            3.35 if hardware == "ConnectX-4" else 6.35 if hardware == "ConnectX-6 Dx" else 4.35,
+        )
         ax.set_ylim(0, 126)
         ax.grid(alpha=0.25)
         ax.set_axisbelow(True)
@@ -174,7 +184,7 @@ def throughput_chart(rows):
     fig.text(
         0.5,
         -0.01,
-        "+ source-limited lower bound (CX4 4W only); CX4 2W had 42.8 Mpps offered; "
+        "+ source-limited lower bound (CX4 3W); final source means were 42.2 Mpps; "
         "AF_XDP maximum includes one separately counted IRQ/NAPI CPU per active queue",
         ha="center",
         fontsize=9,
@@ -186,13 +196,23 @@ def throughput_chart(rows):
 def advantage_chart(rows):
     fig, ax = plt.subplots(figsize=(11.5, 5.4))
     group_x = np.arange(len(HARDWARE))
-    workers_list = [1, 2, 4]
+    scales = [
+        ("1 worker", lambda _hardware: 1),
+        ("2 workers", lambda _hardware: 2),
+        ("scale-out (CX4 3W; others 4W)", lambda hardware: 3 if hardware == "ConnectX-4" else 4),
+    ]
     width = 0.22
     worker_colors = ["#174f46", "#16857b", "#6bb8ad"]
 
-    for index, (workers, color) in enumerate(zip(workers_list, worker_colors)):
+    for index, ((scale_label, workers_for), color) in enumerate(zip(scales, worker_colors)):
         values = []
         for hardware in HARDWARE:
+            workers = workers_for(hardware)
+            if hardware == "ConnectX-4" and index == 2:
+                # Both 3W paths forward the offered source boundary, so their
+                # tiny observed delta is not a DUT performance comparison.
+                values.append(np.nan)
+                continue
             rdma = find(rows, hardware, "RDMA-DV", workers)
             dpdk = find(rows, hardware, "DPDK mlx5", workers)
             if rdma and dpdk:
@@ -200,22 +220,30 @@ def advantage_chart(rows):
             else:
                 values.append(np.nan)
         positions = group_x + (index - 1) * width
-        bars = ax.bar(positions, values, width, color=color, label=f"{workers} worker{'s' if workers > 1 else ''}")
+        bars = ax.bar(positions, values, width, color=color, label=scale_label)
         for hardware, bar, value in zip(HARDWARE, bars, values):
             if np.isnan(value):
                 continue
-            suffix = "+" if hardware == "ConnectX-4" and workers == 4 else ""
             offset = 0.8 if value >= 0 else -1.0
             ax.text(
                 bar.get_x() + bar.get_width() / 2,
                 value + offset,
-                f"{value:+.1f}%{suffix}",
+                f"{value:+.1f}%",
                 ha="center",
                 va="bottom" if value >= 0 else "top",
                 fontsize=8,
             )
 
     ax.axhline(0, color="#333333", linewidth=1)
+    ax.text(
+        group_x[0] + width,
+        2.0,
+        "3W source-limited\n(no delta claim)",
+        ha="center",
+        va="bottom",
+        fontsize=8,
+        color=worker_colors[2],
+    )
     ax.set_ylabel("RDMA-DV throughput advantage over DPDK")
     ax.set_xticks(group_x, HARDWARE)
     # The qualified CX6 4W native plateau is roughly 47% below the tuned
@@ -229,7 +257,7 @@ def advantage_chart(rows):
         "Native DV leads on eMPW platforms at low core count; CX6 DPDK wins scale-out",
         fontweight="bold",
     )
-    fig.text(0.5, 0.005, "+ both CX4 4-worker paths are source-limited", ha="center", fontsize=9)
+    fig.text(0.5, 0.005, "CX4 3W is omitted from the delta because both paths are source-limited", ha="center", fontsize=9)
     fig.tight_layout(rect=(0, 0.03, 1, 1))
     save(fig, "worker-scaling")
 
