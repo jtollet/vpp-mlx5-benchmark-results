@@ -1,86 +1,209 @@
 # Tuning evidence
 
-This file records representative parameter-selection evidence behind the
-winner table. Values in this file are short screens unless explicitly marked
-as a three-run final. They select configurations; they are not mixed into the
-published final means.
+This document keeps the selection evidence behind the article. Short screens
+choose a configuration; only repeated 3×20-second cells populate the public
+result matrix. Every retained frame is proven as 64.000 physical bytes at
+source and DUT. Older PG `size 64` observations are 68-byte controls and never
+select a true64 winner.
 
-## DPDK was not left at defaults
+Queue fairness is `(max RXQ delta - min RXQ delta) / mean RXQ delta`; retained
+multi-queue cells must remain below 1%. Queue count, descriptor depth and
+offered load are screened independently per hardware and datapath. “Maximum”
+means maximum forwarding under pressure, not zero-loss NDR.
 
-All DPDK finals used DPDK 26.03's mlx5 PMD. Runtime inspection confirmed the
-intended vector receive and enhanced-MPW transmit functions on capable
-hardware. `no-rx-cksum` was not enabled: removing RX checksum processing was
-not assumed to be a performance optimization.
+## ConnectX-4
 
-Representative screens:
+CX4 does not advertise eMPW, so native RDMA-DV uses legacy SEND. One- and
+two-worker winners are q2/RXD2048/TXD2048. DPDK independently selects
+q1/RXD1024/TXD2048 at one worker and q2/RXD1024/TXD2048 at two.
 
-| Platform | Dimension | Observed physical TX (Mpps) | Decision |
-|---|---|---:|---|
-| CX4, 1 worker | RX queues 1 / 2 / 4 | 16.383 / 15.410 / 13.787 | q1 |
-| CX4, 2 workers | RX queues 2 / 4 / 8 | 30.410 / ~28.57 / ~24.81 | q2 |
-| CX4, 2 workers | mbuf fast-free | reproducibly slower when enabled | disabled |
-| CX5, 1 worker | RX queues 1 / 2 / 4 | 18.221 / 16.492 / 15.738 | q1 |
-| CX5, 1 worker | RXD/TXD candidates | 256/512, 512/512, 1024/512, 1024/1024, 2048/1024, 1024/2048 | 1024/1024 final |
-| CX5, 2 workers | CQE compression on / off | 31.38 / 36.26 | off |
-| CX5, 2 workers | vector RX off | 27.39 | keep vector RX |
-| CX5, 2 workers | MPRQ | 33.82 | keep cyclic/vector winner |
-| CX5, 2 workers | fast-free off / winner on | 34.10 / 36.26 | on |
-| CX5, 2 workers | RX queues 2 / 4 / 8 | 36.26 / 33.41 / 28.07 | q2 |
-| CX6, 1 worker | RX queues 1 / 2 / 4 | 32.964 / 36.925 / 32.982 | q2 |
-| CX6, 2 workers | RX queues 2 / 4 / 8 / 16 | 50.29 / 50.85 / 50.43 / 46.52 | q4 |
-| CX6, 2 workers | CQE compression off | 47.41 | keep compression on |
-| CX6, 2 workers | scalar RX / MPRQ | 43.74 / 42.83 | keep vector cyclic RX |
-| BF3, 1 worker | RX queues 1 / 2 / 4 | 10.404 / 7.962 / 6.278 | q1 |
-| BF3, 2 workers | RX queues 2 / 4 / 8 | 21.496 / 16.296 / 12.797 | q2 |
-| BF3, 2 workers | CQE compression off / on | 20.589 / 21.859 | on |
-| BF3, 2 workers | vector RX off / on | 18.878 / 21.859 | on |
-| BF3, 2 workers | fast-free off / on | 21.074 / 21.859 | on |
-| BF3, 2 workers | data size 2048 / 1600 | 21.496 / 21.859 | 1600 |
+| Path | 1W | 2W | 4W | 4W qualification |
+|---|---:|---:|---:|---|
+| RDMA-DV | 15.803 Mpps / 206.6 cpp | 28.983 / 225.3 | 42.821 / 304.8 | q4; spread ≤0.007%; source-limited |
+| DPDK | 16.349 / 199.6 | 30.141 / 216.7 | 42.818 / 304.9 | q4; main TXQ0 inactive; source-limited |
+| AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | 20.039 / 1416.9 | q4; four IRQ CPUs; ZC4; spread ≤0.011% |
 
-The CX5 two-worker result is a useful warning against universal mlx5 advice:
-CQE compression was beneficial elsewhere but disabling it was clearly better
-in that exact queue/CPU configuration.
+The poll-mode 4W source stopped at about 42.82 Mpps. Those two rows are lower
+bounds, and their cycles include idle polling at the source ceiling. q8/q16
+were screened; they did not establish a higher source-independent DUT rate.
 
-## Native RDMA-DV
+A direct-PF XL710 control confirms the source boundary. True64 produced
+42.681/42.672/42.676 Mpps (mean 42.676), while true128 produced 33.834 Mpps,
+34.646 Gbit/s of frame bytes and 40.060 Gbit/s after wire overhead. Thus the
+source reaches 40-Gbit/s line rate with larger frames but not the true64 packet
+rate required to move the 4W lower bound. The control used NVM 7.00,
+management firmware 7.1, Linux i40e from the 6.8 kernel and DPDK 24.11.1; no
+firmware update was performed during the benchmark.
 
-Representative native controls include:
+AF_XDP q4 beats q8. A 23.514-Mpps overload diagnostic is rejected because its
+successful redirects vary 1.58–2.53% and the legacy driver exposes only
+aggregate misses. The retained balanced point forwards 20.039 Mpps, reports
+`zc:1` on all four XSKs and has zero queue-full, PAUSE or physical error. Its
+10k–25k aggregate `rx_out_of_buffer` events per window keep the classification
+at maximum-balanced rather than NDR.
 
-- CX4 capability probing rejected enhanced MPW and selected legacy SEND; this
-  is a hardware fallback, not a command-line disable.
-- CX5 two-worker screens measured about 43.19 Mpps with eMPW versus 24.64
-  Mpps with eMPW disabled. Striding and the legacy multisegment path were also
-  slower in that 64-byte workload.
-- CX6 one-worker q2/q4/q8 with explicit UDP RSS measured 46.263 / 46.389 /
-  44.001 Mpps in the queue screen. RXD 512 beat 256 and 1024 for q4.
-- BF3 two-worker q2/q4/q8 measured 27.291 / 23.070 / 13.736 Mpps. With q2,
-  1600-byte data buffers beat 2048-byte buffers, and a one-million-buffer pool
-  won the short screen.
-- Mixed compatible and incompatible packet sequences were validated
-  separately. A compatible run after an incompatible packet starts a new
-  eMPW session; the fallback does not permanently disable batching.
+## ConnectX-5
 
-## AF_XDP
+### RDMA-DV
 
-AF_XDP was forced to native zero-copy, and `zc:1` was verified per socket.
-The search covered XSK rings, NIC rings, UMEM/VPP buffer count, data size,
-syscall lock, coalescing, RSS, queue count and IRQ/NAPI placement.
+Native uses cyclic RQ, eMPW, `mode dv` and `no-multi-seg`.
 
-Two distinct results are deliberately retained:
+| Workers | Winner | Physical TX | Worker cpp | RXQ spread |
+|---:|---|---:|---:|---:|
+| 1 | q1 RXD1024/TXD512 | 24.310 | 127.237 | n/a |
+| 2 | q2 RXD512/TXD512 | 45.389 | 135.840 | <1% |
+| 4 | q4 RXD256/TXD1024 | 60.620 | 203.355 | 0.095–0.163% |
 
-- `strict`: IRQ/NAPI shares the one or two dataplane CPUs with VPP;
-- `maximum`: IRQ/NAPI uses one or two extra physical CPUs and its CPU cost is
-  added to the VPP worker cost.
+At 4W, q8 and q16 reach 56.91 and 55.31 Mpps; q16 is rejected at 1.78%
+spread. Doubling TXD to 2048 reduces `no free tx slots` about 12% but changes
+TX only +0.22%. RXD512 drops TX to 58.77 Mpps. Ring depth changes queueing
+headroom, not the sustainable service rate.
 
-More memory was not a general cure for overload collapse. On CX5 two-worker
-screens, 262k/524k/1M buffers produced about 11.42/11.74/11.48 Mpps at the
-same knee, and XSK RX depths 1024/2048/4096/8192 likewise had a finite optimum.
-On CX4, two million buffers regressed and introduced RX_FULL events. Queue
-count was also strongly non-monotonic because every XSK adds polling and ring
-management to a fixed worker budget.
+### DPDK mlx5
 
-## Interpretation boundary
+DPDK uses vector RX, enhanced MPW, fast-free, CQE compression disabled and an
+inactive main TXQ plus private worker TXQs.
 
-These sweeps support “best found in the documented search.” They do not prove
-a global optimum for every firmware, VPP graph, packet size or traffic mix.
-The raw screening runs are not published because they contain lab identifiers;
-the aggregate values above were transcribed through an anonymization allow-list.
+| Workers | Winner | Physical TX | Worker cpp | RXQ spread |
+|---:|---|---:|---:|---:|
+| 1 | q1 RXD1024/TXD1024; TXQ2 | 18.980 | 162.973 | n/a |
+| 2 | q2 RXD1024/TXD512; TXQ3 | 36.374 | 169.512 | 0.63–0.67% |
+| 4 | q4 RXD1024/TXD512; TXQ5 | 55.063 | 223.877 | 0.015–0.025% |
+
+The 4W screen crosses q4/q8/q16 with one, two and four TXQs per worker. q4
+with one wins. q8/q16 either lose throughput or exceed 1% fairness. RXD
+1024/2048/4096 produces 58.09/57.25/56.41 Mpps in matched short windows.
+TXD1024 reduces TX failures but gains only 0.16%. Extra queues and descriptors
+do not lift the CX5 4W plateau.
+
+### AF_XDP zero-copy
+
+Every XSK independently proves native zero-copy. Strict rows colocate IRQ/NAPI
+and count the full worker CPU; maximum rows count separate kernel CPUs.
+
+| Layout | 1W | 2W | 4W | 4W rings |
+|---|---:|---:|---:|---|
+| strict | 4.992 | 9.485 | 9.698 Mpps | RX4096/TX1024 |
+| maximum | 6.416 | 12.437 | 14.021 Mpps | RX4096/TX1024; four IRQ CPUs |
+
+At 4W, q4 is balanced below 0.54% strict and 0.02% maximum; q8 is rejected.
+RX4096/TX1024 and RX512/TX4096 both help short screens. The combined
+RX4096/TX4096 configuration falls to 13.22/13.87/13.90 Mpps over 3×20 seconds.
+Buffers from 524k to 2M, coalescing 0/0 to 32 usec/512 frames and the legacy
+syscall lock do not yield a monotonic sustained gain. Deeper rings delay
+pressure; they do not raise service rate.
+
+The 4W maximum uses four workers plus four IRQ CPUs and costs about 1692
+all-in cycles per successful packet. Input/L3/TX vectors fall relative to 2W,
+while userspace plus kernel cost rises. This—not an inactive queue—explains
+the weak 2W→4W AF_XDP scaling.
+
+## ConnectX-6 Dx
+
+### Native RDMA-DV
+
+The one- and two-worker rows are the retained clean finals. The four-to-six
+worker rows are controlled maximum-under-pressure finals with source headroom;
+all use native eMPW, no-striding and no-multi-seg:
+
+| Workers / RXQ | Physical TX | Worker cpp / ipp | Input / L3 / TX vectors |
+|---|---:|---:|---:|
+| 1 / 4 | 45.370 Mpps | 90.153 / 316.801 | 279 / 214 / 251 |
+| 2 / 4 | 52.814 | 154.925 / 562.506 | 34 / 70 / 73 |
+| 4 / 8 | 53.233 | 307.075 / 1242.695 | 32 / 62 / 61 |
+| 5 / 10 | 53.445 | 382.337 / 1584.736 | 31 / 63 / 60 |
+| 6 / 12 | 53.005 | 462.563 / 1958.660 | 33 / 62 / 58 |
+
+All workers are busy near 4.1 GHz. RXQ spread stays below 0.43% through six
+workers, every worker QP is active and dedicated, and the main QP is inactive.
+Aggregate work per successful packet rises with worker count while throughput
+stays around 53 Mpps. The following causal controls do **not** move the native
+ceiling:
+
+- one, two or four independently owned TX QPs per worker;
+- one CQE request every 1–32 eMPW doorbells;
+- 2k–16k outstanding-buffer rings;
+- q2/q4/q8 receive fan-out with balanced RSS;
+- `BALANCED` versus `AGGRESSIVE` firmware policy;
+- dedicated BF/UAR resources, larger descriptors or additional source rate.
+
+The remaining gap is localized to added work inside the multi-worker
+raw-QP/eMPW implementation. Smaller batches are observed at the same time, but
+are not yet proven to initiate the extra work. The gap is not assigned to one
+source line.
+
+### DPDK scale-out
+
+The canonical true64 finals use RXD512/TXD2048, a separate main core, inactive
+main TXQ0, exclusive worker TXQs, weighted RETA and AGGRESSIVE firmware.
+
+| Workers | RXQ | TXQ/worker | Total TXQ | Physical TX | Worker cpp | Spread |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1 | 2 | 1 | 2 | 34.800 | 117.4 | 0.95% |
+| 2 | 2 | 4 | 9 | 54.998 | 148.6 | 0.14% |
+| 4 | 8 | 2 | 9 | 101.198 | 161.5 | 0.28% |
+| 5 | 10 | 2 | 11 | 113.048 | 180.7 | 0.10% |
+| 6 | 12 | 2 | 13 | 115.625 | 212.0 | 0.12% |
+
+At four fixed workers and q4, changing only TXQ/worker from one to two to four
+raises TX from 53.03 to 93.28 to 93.87 Mpps. This proves a TXQ service effect.
+At six workers, q12 (two RXQ/worker) beats q6 (one RXQ/worker), about 115.6
+versus 102.2 Mpps. The source supplies 133.432 Mpps during the 6W final.
+
+Testpmd confirms the queue-topology effect: q4/q8/q16 on four cores produces
+48.42/93.49/111.30 Mpps as each core moves from one to two to four RX/TX queue
+pairs. The original 53-versus-116 comparison was invalid because VPP had one
+active TXQ per worker while testpmd had four pairs per core.
+
+### AF_XDP
+
+CX6 uses four active XSKs for the maximum rows and for strict 2W. Rings are
+8192/8192 with 1M VPP buffers. Every socket reports `zc:1`.
+
+| Layout | 1W | 2W | Dataplane CPU budget at 2W |
+|---|---:|---:|---|
+| strict | 8.482 | 15.616 Mpps | two worker CPUs including colocated IRQ/NAPI |
+| maximum | 17.797 | 33.367 Mpps | two workers plus four IRQ/NAPI CPUs |
+
+Physical/RSS input spread remains below 0.029%. Ring-full, allocation and TX
+shortage counters are disclosed because these are MRR points, not NDR.
+
+### Firmware policy
+
+In the matched true64 4W control, `BALANCED`/`AGGRESSIVE` produce 86.89/86.81
+Mpps for DPDK and 49.62/49.85 for native: less than 0.5% throughput change.
+Batching nevertheless changes sharply: DPDK input averages about 60.5 versus
+12.2 packets/call and native input about 8.6 versus 2.0. Firmware policy changes
+software behavior, but it does not explain the native ceiling in this A/B.
+
+## BlueField-3
+
+BF3 runs VPP on embedded Arm Cortex-A78AE cores. Native uses striding RQ and
+eMPW; DPDK uses vector NEON RX, enhanced MPW and fast-free.
+
+| Path | 1W Mpps / cpp | 2W Mpps / cpp | 4W Mpps / cpp | 2W→4W |
+|---|---:|---:|---:|---:|
+| RDMA-DV | 14.202 / 140.5 | 27.211 / 146.6 | 55.349 / 144.2 | 2.034x |
+| DPDK | 10.252 / 194.6 | 21.035 / 189.6 | 42.239 / 189.0 | 2.008x |
+
+At 1W/2W/4W, RDMA-DV forwards 38.5%/29.4%/31.0% more packets and uses
+27.8%/22.7%/23.7% fewer worker cycles. The 4W winners use q4. Native retains
+RXD256/TXD2048 and one QP per worker; DPDK retains RXD256/TXD512, an inactive
+main TXQ and one exclusive TXQ per worker. q8, neighboring rings and a second
+DPDK TXQ per worker were lower or imbalanced. All retained RXQ spreads remain
+below 1%. Native is a maximum under RX pressure and DPDK is a counter-clean
+near-knee point with a 0.20% RX-to-TX gap; neither is NDR. BF3 AF_XDP is outside
+scope.
+
+## Kernel and VPP review provenance
+
+All AF_XDP performance rows use only the submitted mlx5 cyclic-RQ ownership
+fix. The v1 discussion and Dragos Tatulea review are in the
+[`netdev` thread](https://lore.kernel.org/netdev/20260819151320.64178-1-jtollet@cisco.com/);
+the revised submission is
+[`[PATCH net v2]`](https://lore.kernel.org/netdev/20260820151558.11015-1-jtollet@cisco.com/).
+No performance number claims an unmodified upstream kernel.
+
+The exact VPP tree and live Gerrit state are recorded in `VPP_CHANGES.md`.
+Change 46506 is merged; 45505, 46155 and 46465 have CI Verified +1 at the
+article freeze point.
