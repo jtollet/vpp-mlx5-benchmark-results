@@ -30,7 +30,7 @@ COLORS = {
     "AF_XDP ZC": "#d96b47",
 }
 MARKERS = {"RDMA-DV": "o", "DPDK mlx5": "s", "AF_XDP ZC": "^"}
-CX4_SOURCE_REVALIDATION_MPPS = 42.634
+CX4_TRUE64_TG_CEILING_MPPS = 42.634
 NUMERIC = {
     "workers",
     "extra_irq_cpus",
@@ -136,15 +136,15 @@ def throughput_chart(rows):
                 )
         if hardware == "ConnectX-4":
             ax.axhline(
-                CX4_SOURCE_REVALIDATION_MPPS,
+                CX4_TRUE64_TG_CEILING_MPPS,
                 color="#555555",
                 linewidth=1.5,
                 linestyle=(0, (4, 3)),
                 zorder=0,
             )
             ax.annotate(
-                f"Fresh-source revalidation: {CX4_SOURCE_REVALIDATION_MPPS:.1f} Mpps",
-                xy=(0.68, CX4_SOURCE_REVALIDATION_MPPS),
+                f"Measured traffic-generator ceiling (true64): {CX4_TRUE64_TG_CEILING_MPPS:.1f} Mpps",
+                xy=(0.68, CX4_TRUE64_TG_CEILING_MPPS),
                 xytext=(0, 7),
                 textcoords="offset points",
                 ha="left",

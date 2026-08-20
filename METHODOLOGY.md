@@ -179,12 +179,12 @@ between cells.
 The separate ConnectX-4 traffic source uses an Intel XL710 with NVM 7.00,
 management firmware 7.1, the Linux 6.8 i40e driver and DPDK 24.11.1. A
 direct-PF control proves 40-Gbit/s wire rate at true128. The synchronized
-fresh-source true64 revalidation for the retained three-worker campaign
-reached 42.634 Mpps; the final source means were 42.205 Mpps for RDMA-DV and
-42.214 Mpps for DPDK. This 42.2--42.6-Mpps provenance is why the CX4 3W
-poll-mode values are marked as lower bounds; no firmware update was attempted
-as part of the measurement. CX4 AF_XDP is retained only at one and two
-workers.
+true64 traffic-generator ceiling control for the retained three-worker
+campaign reached 42.634 Mpps; the final source means were 42.205 Mpps for
+RDMA-DV and 42.214 Mpps for DPDK. This 42.2--42.6-Mpps provenance is why the
+CX4 3W poll-mode values are marked as lower bounds; no firmware update was
+attempted as part of the measurement. CX4 AF_XDP is retained only at one and
+two workers.
 
 AF_XDP is forced with `XDP_ZEROCOPY`, and the kernel
 `XDP_OPTIONS_ZEROCOPY` flag is checked independently on every socket. The

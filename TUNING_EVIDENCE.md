@@ -26,20 +26,22 @@ main TXQ0.
 | DPDK | 16.349 / 199.6 | 30.141 / 216.7 | 42.213+ / 231.9 | q3; TXQ0 inactive; RXQ spread ≤0.593%; source-limited |
 | AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | — | not measured at 3W |
 
-Each 3W winner is a fresh-source 3×20-second result. The final source means
-were 42.205 Mpps for RDMA-DV and 42.214 Mpps for DPDK; a synchronized source
-revalidation reached 42.634 Mpps. Both DUT rates are therefore source-limited
-lower bounds, and their cycles include idle polling at the offered boundary.
+Each 3W winner is a three-window 3×20-second result with a restarted source.
+The final source means
+were 42.205 Mpps for RDMA-DV and 42.214 Mpps for DPDK; a synchronized true64
+traffic-generator ceiling control reached 42.634 Mpps. Both DUT rates are
+therefore source-limited lower bounds, and their cycles include idle polling
+at the offered boundary.
 All three RX queues are active and balanced. Native main TQ0 and DPDK TXQ0
 remain inactive; the three worker QPs/TXQs exclusively carry the traffic.
 
-The synchronized direct-PF revalidation measured 42.634 Mpps source TX and
-42.640 Mpps at the CX4 physical RX counter. A separate true128 control reached
-40.060 Gbit/s after wire overhead. Thus the source reaches 40-Gbit/s line rate
-with larger frames but not the true64 packet rate required to move the 3W
-lower bound. The controls used NVM 7.00, management firmware 7.1, Linux i40e
-from the 6.8 kernel and DPDK 24.11.1; no firmware update was performed during
-the benchmark.
+The synchronized true64 traffic-generator ceiling control measured 42.634
+Mpps source TX and 42.640 Mpps at the CX4 physical RX counter. A separate
+true128 control reached 40.060 Gbit/s after wire overhead. Thus the source
+reaches 40-Gbit/s line rate with larger frames but not the true64 packet rate
+required to move the 3W lower bound. The controls used NVM 7.00, management
+firmware 7.1, Linux i40e from the 6.8 kernel and DPDK 24.11.1; no firmware
+update was performed during the benchmark.
 
 Historical four-worker runs remain diagnostic artifacts only and do not feed
 the article table, public CSV or main charts. They also stopped at the source

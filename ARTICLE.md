@@ -75,13 +75,14 @@ means that topology was outside the retained final matrix, not zero throughput.
 | BlueField-3 | RDMA-DV + eMPW | **14.2 / 140** | **27.2 / 147** | 4W: **55.3 / 144** |
 |  | DPDK mlx5 | 10.3 / 195 | 21.0 / 190 | 4W: 42.2 / 189 |
 
-CX4 reaches the traffic source at three workers. The fresh-source
-revalidation delivered 42.63 Mpps, while the three final windows offered a
-mean 42.21 Mpps and the DUT retransmitted 42.17 Mpps with RDMA-DV and 42.21
-Mpps with DPDK. Both 3W values are therefore lower bounds; they do not prove
-that either DUT path stops there. This source limit does **not** apply to the
-two-worker points: the generator offered about 42.8 Mpps while the CX4
-physically retransmitted 28.98 Mpps with RDMA-DV and 30.14 Mpps with DPDK.
+CX4 reaches the traffic source at three workers. The measured true64
+traffic-generator ceiling was 42.63 Mpps, while the three final windows
+offered a mean 42.21 Mpps and the DUT retransmitted 42.17 Mpps with RDMA-DV
+and 42.21 Mpps with DPDK. Both 3W values are therefore lower bounds; they do
+not prove that either DUT path stops there. This source limit does **not**
+apply to the two-worker points: the generator offered about 42.8 Mpps while
+the CX4 physically retransmitted 28.98 Mpps with RDMA-DV and 30.14 Mpps with
+DPDK.
 AF_XDP was not measured at three workers, so its scale-out cell remains blank.
 AF_XDP was not measured on BF3 by study scope; this is not a capability claim.
 
