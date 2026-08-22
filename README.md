@@ -1,8 +1,9 @@
 # VPP on NVIDIA ConnectX and BlueField: anonymized benchmark data
 
-> **Status: investigation draft. Do not publish or cite the article yet.**
-> ConnectX-6 native RDMA-DV dispatch and queue scaling are being requalified;
-> the current scale-out values are retained only as diagnostic observations.
+> **Status: engineering draft.** The ConnectX-6 root cause and corrected
+> one-to-six-worker series are qualified. The full-inline native code remains
+> a disabled-by-default benchmark prototype; the tested adaptive policy was
+> rejected and only explicit OFF/ON results are retained.
 
 This repository accompanies the draft article **“What RDMA-DV buys VPP on
 NVIDIA ConnectX and BlueField.”** It archives a tuned comparison
@@ -15,16 +16,19 @@ All numeric cells were repeated on the frozen exact VPP review tree. RDMA-DV
 and DPDK have qualified one- and two-worker rows on all four platforms.
 ConnectX-4 RDMA-DV and DPDK are qualified at one, two and three workers; both
 three-worker points are source-limited lower bounds. ConnectX-4 AF_XDP is
-published only at one and two workers. ConnectX-5 and BlueField-3 have
-qualified four-worker rows. Both ConnectX-6 RDMA-DV and DPDK are qualified
-from one through six workers, with explicit main/worker QP or TXQ ownership
-and balanced RX placement. AF_XDP is complete at the retained worker counts
-on the three discrete ConnectX adapters and not measured on BlueField-3 by
-study scope.
+qualified through three workers. ConnectX-5 and BlueField-3 have qualified
+four-worker rows. ConnectX-6 DPDK is qualified from one through six workers
+with inline state controlled independently of TXQ count. ConnectX-6 native is
+qualified at one, two, four, five and six workers; full inline is selected from
+two workers upward, while the old two-to-six-worker pointer plateau is retained
+as a separate control profile. AF_XDP is complete at the retained
+worker counts on the three discrete ConnectX adapters and not measured on
+BlueField-3 by study scope.
 
-AF_XDP measurements are complete for the submitted mlx5 `[PATCH net v2]`
-build. Applying them to an upstream kernel remains provisional while that fix
-is under review; this is a code-provenance caveat, not unfinished measurement.
+AF_XDP measurements are complete for the cyclic-RQ fix carried unchanged into
+the submitted mlx5 `[PATCH net v3 0/2]` series. Applying them to an upstream
+kernel remains provisional while that series is under review; this is a
+code-provenance caveat, not unfinished measurement.
 
 ## Contents
 
@@ -34,14 +38,18 @@ is under review; this is a code-provenance caveat, not unfinished measurement.
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md): submitted AF_XDP fix and native eMPW status.
 - [`VPP_CHANGES.md`](VPP_CHANGES.md): exact tested revisions and live Gerrit state.
 - [`patches/mlx5-af-xdp-partial-refill-double-release-fix.patch`](patches/mlx5-af-xdp-partial-refill-double-release-fix.patch):
-  exact `[PATCH net v2]` submission used for AF_XDP A/B and performance requalification.
+  exact v2 cyclic patch used for AF_XDP A/B and carried unchanged as v3 patch 1.
 - [`data/results.csv`](data/results.csv): throughput, CPU scopes and qualification labels.
+- [`data/cx6-inline-causal.csv`](data/cx6-inline-causal.csv): matched TX-only
+  pointer/inline root-cause screens for native RDMA-DV and DPDK.
+- [`data/bf3-inline-controls.csv`](data/bf3-inline-controls.csv): matched BF3
+  evidence showing why fixed always-on inline is not a universal policy.
 - [`data/configurations.csv`](data/configurations.csv): retained tuning and
   scope state, including main/worker CPU and NUMA placement, RXQ-to-worker mapping,
   TXQ/QP producer ownership, sharing and balance evidence.
 - [`data/platforms.csv`](data/platforms.csv): public platform descriptions.
 - [`scripts/plot_results.py`](scripts/plot_results.py): reproducible figures which
-  exclude unmeasured rows.
+  exclude unmeasured rows and keep short causal screens separate from finals.
 - [`charts/`](charts): SVG and PNG figures generated from the CSV.
 
 ## Reading the data correctly

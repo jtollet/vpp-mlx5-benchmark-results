@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the three publication figures from qualified true64 rows."""
+"""Generate the publication figures from qualified true64 rows and causal controls."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "results.csv"
+CX6_INLINE_DATA = ROOT / "data" / "cx6-inline-causal.csv"
 CHARTS = ROOT / "charts"
 
 HARDWARE = ["ConnectX-4", "ConnectX-5", "ConnectX-6 Dx", "BlueField-3"]
@@ -159,7 +160,7 @@ def throughput_chart(rows):
             0.6,
             3.35 if hardware == "ConnectX-4" else 6.35 if hardware == "ConnectX-6 Dx" else 4.35,
         )
-        ax.set_ylim(0, 126)
+        ax.set_ylim(0, 132)
         ax.grid(alpha=0.25)
         ax.set_axisbelow(True)
         ax.set_xlabel("VPP workers")
@@ -184,8 +185,8 @@ def throughput_chart(rows):
     fig.text(
         0.5,
         -0.01,
-        "+ source-limited lower bound (CX4 3W); final source means were 42.2 Mpps; "
-        "AF_XDP maximum includes one separately counted IRQ/NAPI CPU per active queue",
+        "+ source-limited lower bound (CX4 3W poll-mode); AF_XDP maximum counts one extra IRQ/NAPI CPU per queue\n"
+        "CX6 RDMA-DV uses pointer segments at 1W and the disabled-by-default full-inline prototype from 2W upward",
         ha="center",
         fontsize=9,
     )
@@ -246,20 +247,70 @@ def advantage_chart(rows):
     )
     ax.set_ylabel("RDMA-DV throughput advantage over DPDK")
     ax.set_xticks(group_x, HARDWARE)
-    # The qualified CX6 4W native plateau is roughly 47% below the tuned
-    # multi-TXQ DPDK point.  Keep it inside the axes instead of letting the
-    # annotation expand the tight bounding box into a mostly blank image.
-    ax.set_ylim(-55, 44)
+    ax.set_ylim(-15, 44)
     ax.grid(axis="y", alpha=0.25)
     ax.set_axisbelow(True)
     ax.legend(frameon=False, ncol=3, loc="upper center")
     ax.set_title(
-        "Native DV leads on eMPW platforms at low core count; CX6 DPDK wins scale-out",
+        "With matched eMPW inline, native DV leads at 4W on every capable platform",
         fontweight="bold",
     )
     fig.text(0.5, 0.005, "CX4 3W is omitted from the delta because both paths are source-limited", ha="center", fontsize=9)
     fig.tight_layout(rect=(0, 0.03, 1, 1))
     save(fig, "worker-scaling")
+
+
+def cx6_inline_chart():
+    with CX6_INLINE_DATA.open(newline="", encoding="utf-8") as stream:
+        rows = [
+            row
+            for row in csv.DictReader(stream)
+            if row["driver"] == "RDMA-DV" and row["measurement"] == "causal_screen"
+        ]
+
+    modes = [
+        ("off", "completion", "Pointer data segment", "#777777"),
+        ("on", "completion", "Full inline, retain buffer", "#55a79f"),
+        ("on", "immediate", "Full inline, immediate free", "#16857b"),
+    ]
+    workers = [2, 4]
+    x = np.arange(len(workers))
+    width = 0.25
+    fig, ax = plt.subplots(figsize=(9.6, 5.4))
+
+    for index, (inline_state, release, label, color) in enumerate(modes):
+        values = []
+        for worker_count in workers:
+            row = next(
+                row
+                for row in rows
+                if int(row["workers"]) == worker_count
+                and row["inline_state"] == inline_state
+                and row["buffer_release"] == release
+            )
+            values.append(float(row["throughput_mpps"]))
+        bars = ax.bar(x + (index - 1) * width, values, width, label=label, color=color)
+        ax.bar_label(bars, labels=[f"{value:.1f}" for value in values], padding=3, fontsize=9)
+
+    ax.set_xticks(x, ["2 workers", "4 workers"])
+    ax.set_ylabel("Successful physical TX (Mpps)")
+    ax.set_ylim(0, 158)
+    ax.grid(axis="y", alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.legend(frameon=False, loc="upper left")
+    ax.set_title(
+        "CX6 TX-only: full-packet eMPW inline removes the pointer-DMA ceiling",
+        fontweight="bold",
+    )
+    fig.text(
+        0.5,
+        0.01,
+        "True Ethernet64, one raw QP per worker; single matched 5-second causal screens",
+        ha="center",
+        fontsize=9,
+    )
+    fig.tight_layout(rect=(0, 0.04, 1, 1))
+    save(fig, "cx6-inline-root-cause")
 
 
 def cpu_chart(rows):
@@ -327,6 +378,7 @@ def main():
     throughput_chart(rows)
     advantage_chart(rows)
     cpu_chart(rows)
+    cx6_inline_chart()
 
 
 if __name__ == "__main__":

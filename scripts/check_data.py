@@ -11,6 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "data" / "results.csv"
 CONFIGURATIONS = ROOT / "data" / "configurations.csv"
 ARTICLE = ROOT / "ARTICLE.md"
+CX6_INLINE = ROOT / "data" / "cx6-inline-causal.csv"
+BF3_INLINE = ROOT / "data" / "bf3-inline-controls.csv"
 FINAL_STATUSES = {"final", "provisional"}
 PENDING_STATUSES = {"pending_exact_stack", "pending_requalification", "not_measured"}
 MEASUREMENTS = {
@@ -89,6 +91,38 @@ def check_article_matrix(
             )
 
 
+def check_inline_controls() -> None:
+    """Guard the causal values and keep prototypes out of adaptive claims."""
+
+    cx6 = read(CX6_INLINE)
+    observed = {
+        (row["driver"], row["workers"], row["inline_state"], row["buffer_release"]):
+        float(row["throughput_mpps"])
+        for row in cx6
+    }
+    expected = {
+        ("RDMA-DV", "4", "off", "completion"): 68.868372,
+        ("RDMA-DV", "4", "on", "completion"): 140.816453,
+        ("RDMA-DV", "4", "on", "immediate"): 145.862425,
+        ("DPDK mlx5", "4", "off", "completion"): 68.439863,
+        ("DPDK mlx5", "4", "on", "immediate"): 125.005641,
+    }
+    for cell, value in expected.items():
+        assert abs(observed[cell] - value) < 0.000001, f"CX6 causal mismatch: {cell}"
+
+    bf3 = read(BF3_INLINE)
+    assert len(bf3) == 3, "unexpected BF3 inline-control count"
+    assert all(row["repeats"] == "3" and row["window_seconds"] == "12" for row in bf3)
+    assert [round(float(row["throughput_mpps"]), 6) for row in bf3] == [
+        49.320811,
+        44.095969,
+        43.094256,
+    ]
+
+    article = ARTICLE.read_text(encoding="utf-8")
+    assert "No adaptive result appears in this article or its CSV." in article
+
+
 def main() -> None:
     results = read(RESULTS)
     configurations = read(CONFIGURATIONS)
@@ -152,6 +186,7 @@ def main() -> None:
         assert "source-limited" in result_by_key[cell]["qualification"], cell
 
     check_article_matrix(result_by_key)
+    check_inline_controls()
 
     print(
         f"Data audit passed: {len(results)} matched cells; final true64, 3x20, "

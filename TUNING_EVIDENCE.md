@@ -18,13 +18,15 @@ two-worker winners are q2/RXD2048/TXD2048. DPDK independently selects
 q1/RXD1024/TXD2048 at one worker and q2/RXD1024/TXD2048 at two. At three
 workers, RDMA-DV selects q3/RXD1024/TXD2048 and four QPs including an inactive
 main QP. DPDK selects q3/RXD2048/TXD2048 and four TXQs including inactive
-main TXQ0.
+main TXQ0. Its retained hardware-detail snapshots identify No MPW with inline
+and the `mlx5_tx_burst_sci` function: the requested `txq_inline_mpw=1` did not
+select MPW, so the DPDK winner is classic SEND with inline.
 
 | Path | 1W | 2W | 3W | 3W qualification |
 |---|---:|---:|---:|---|
 | RDMA-DV | 15.803 Mpps / 206.6 cpp | 28.983 / 225.3 | 42.166+ / 232.2 | q3; RXQ spread ≤0.159%; source-limited |
-| DPDK | 16.349 / 199.6 | 30.141 / 216.7 | 42.213+ / 231.9 | q3; TXQ0 inactive; RXQ spread ≤0.593%; source-limited |
-| AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | — | not measured at 3W |
+| DPDK, classic SEND + inline | 16.349 / 199.6 | 30.141 / 216.7 | 42.213+ / 231.9 | q3; TXQ0 inactive; RXQ spread ≤0.593%; source-limited |
+| AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | 17.066 / 1250.5 | q3; XSK spread ≤0.0054%; three extra IRQ CPUs |
 
 Each 3W winner is a three-window 3×20-second result with a restarted source.
 The final source means
@@ -43,12 +45,13 @@ required to move the 3W lower bound. The controls used NVM 7.00, management
 firmware 7.1, Linux i40e from the 6.8 kernel and DPDK 24.11.1; no firmware
 update was performed during the benchmark.
 
-Historical four-worker runs remain diagnostic artifacts only and do not feed
-the article table, public CSV or main charts. They also stopped at the source
-boundary (42.821/42.818 Mpps for RDMA-DV/DPDK), so adding a fourth worker did
-not establish either DUT ceiling. A separate four-XSK AF_XDP experiment is
-likewise excluded from the headline matrix; no three-worker AF_XDP final was
-run, and no four-worker result is substituted for it.
+Historical four-worker poll-mode runs remain diagnostic artifacts only and do
+not feed the article table, public CSV or main charts. They also stopped at the
+source boundary (42.821/42.818 Mpps for RDMA-DV/DPDK), so adding a fourth
+worker did not establish either DUT ceiling. AF_XDP has a separate qualified
+three-worker maximum: three balanced XSKs reach 17.066 Mpps with three
+additional IRQ/NAPI cores. A four-XSK result remains outside the CX4 headline
+matrix so every path is plotted only at one, two and three workers.
 
 ## ConnectX-5
 
@@ -110,23 +113,25 @@ the weak 2W→4W AF_XDP scaling.
 
 ### Native RDMA-DV
 
-The one- and two-worker rows are the retained clean finals. The four-to-six
-worker rows are controlled maximum-under-pressure finals with source headroom;
-all use native eMPW, no-striding and no-multi-seg:
+The one-worker row retains the pointer-data-segment path. The old two-to-six-
+worker pointer controls established the 53-Mpps plateau; explicit full inline
+now supplies the headline profile from two workers upward:
 
-| Workers / RXQ | Physical TX | Worker cpp / ipp | Input / L3 / TX vectors |
-|---|---:|---:|---:|
-| 1 / 4 | 45.370 Mpps | 90.153 / 316.801 | 279 / 214 / 251 |
-| 2 / 4 | 52.814 | 154.925 / 562.506 | 34 / 70 / 73 |
-| 4 / 8 | 53.233 | 307.075 / 1242.695 | 32 / 62 / 61 |
-| 5 / 10 | 53.445 | 382.337 / 1584.736 | 31 / 63 / 60 |
-| 6 / 12 | 53.005 | 462.563 / 1958.660 | 33 / 62 / 58 |
+| Workers / RXQ | TX representation | Physical TX | Worker cpp / ipp | Status |
+|---|---|---:|---:|---|
+| 1 / 4 | pointer | 45.370 Mpps | 90.153 / 316.801 | clean final; inline screen is lower |
+| 2 / 4 | full inline + immediate free | **60.893** | **134.211 / 445.618** | MRR; measured warm-up placement; RXQ spread ≤0.136% |
+| 4 / 8 | full inline + immediate free | **109.049** | **149.917 / 496.182** | canonical MRR, 3×20 s |
+| 5 / 20 | full inline + immediate free | **124.564** | **164.023 / 576.816** | CQE32/ring8192; RXQ spread ≤0.992% |
+| 6 / 12 | full inline + immediate free | **122.867** | **199.526 / 725.189** | CQE32/ring8192; RXQ spread ≤0.461% |
+| 2 / 4 | pointer | 52.814 | 154.925 / 562.506 | historical control |
+| 4 / 8 | pointer | 53.233 | 307.075 / 1242.695 | historical control |
+| 5 / 10 | pointer | 53.445 | 382.337 / 1584.736 | historical control |
+| 6 / 12 | pointer | 53.005 | 462.563 / 1958.660 | historical control |
 
-All workers are busy near 4.1 GHz. RXQ spread stays below 0.43% through six
-workers, every worker QP is active and dedicated, and the main QP is inactive.
-Aggregate work per successful packet rises with worker count while throughput
-stays around 53 Mpps. The following causal controls do **not** move the native
-ceiling:
+All workers in the pointer controls are busy near 4.1 GHz. RXQ spread stays
+below 0.43%, every worker QP is active and dedicated, and the main QP is
+inactive. The following controls do **not** move the pointer ceiling:
 
 - one, two or four independently owned TX QPs per worker;
 - one CQE request every 1–32 eMPW doorbells;
@@ -135,33 +140,49 @@ ceiling:
 - `BALANCED` versus `AGGRESSIVE` firmware policy;
 - dedicated BF/UAR resources, larger descriptors or additional source rate.
 
-The remaining gap is localized to added work inside the multi-worker
-raw-QP/eMPW implementation. Smaller batches are observed at the same time, but
-are not yet proven to initiate the extra work. The gap is not assigned to one
-source line.
+The decisive TX-only A/B changes only packet representation. At four workers,
+pointer / inline-retained / inline-immediate-free produces 68.868 / 140.816 /
+145.862 Mpps. Thus external per-packet buffer reads—not RX dispatch, QP count
+or CQE cadence—are the primary cause. Immediate free adds 3.6% over retained
+inline and is secondary.
+
+The L3 series sustains 60.893/109.049/124.564/122.867 Mpps at 2W/4W/5W/6W.
+The 5W winner uses q20, four RX queues per worker; q12 is retained at 6W because
+its individual RXQ spread is 0.461%, while faster q18/q24 screens exceeded the
+strict per-RXQ fairness threshold. Priority-buffer and software-pressure
+counters make these MRR rather than NDR. A separate 4W 91.282-Mpps control has
+zero in both domains.
+
+The per-TXQ adaptive follow-up is a negative result: 10/128 backlog hysteresis
+oscillated roughly 250,000 times per TXQ in six seconds and reduced CX6 4W/q4
+to 49.2 Mpps. The retained prototype therefore exposes only explicit OFF or
+full-inline/immediate-free ON; adaptive figures are excluded.
 
 ### DPDK scale-out
 
 The canonical true64 finals use RXD512/TXD2048, a separate main core, inactive
-main TXQ0, exclusive worker TXQs, weighted RETA and AGGRESSIVE firmware.
+main TXQ0, one exclusive TXQ per worker, weighted RETA and AGGRESSIVE firmware.
+Inline is explicitly off at 1W and explicitly on from 2W upward.
 
 | Workers | RXQ | TXQ/worker | Total TXQ | Physical TX | Worker cpp | Spread |
 |---:|---:|---:|---:|---:|---:|---:|
 | 1 | 2 | 1 | 2 | 34.800 | 117.4 | 0.95% |
-| 2 | 2 | 4 | 9 | 54.998 | 148.6 | 0.14% |
-| 4 | 8 | 2 | 9 | 101.198 | 161.5 | 0.28% |
-| 5 | 10 | 2 | 11 | 113.048 | 180.7 | 0.10% |
-| 6 | 12 | 2 | 13 | 115.625 | 212.0 | 0.12% |
+| 2 | 2 | 1 | 3 | 59.308 | 137.8 | 0.062% |
+| 4 | 8 | 1 | 5 | 101.838 | 160.5 | 0.233% |
+| 5 | 10 | 1 | 6 | 114.891 | 177.8 | 0.035% |
+| 6 | 12 | 1 | 7 | 117.260 | 208.9 | 0.094% |
 
-At four fixed workers and q4, changing only TXQ/worker from one to two to four
-raises TX from 53.03 to 93.28 to 93.87 Mpps. This proves a TXQ service effect.
-At six workers, q12 (two RXQ/worker) beats q6 (one RXQ/worker), about 115.6
-versus 102.2 Mpps. The source supplies 133.432 Mpps during the 6W final.
+The historical queue-count A/B was confounded by mlx5's default eight-total-
+TXQ inline threshold: four workers plus the main used five queues at p1 and
+nine at p2. The new crossed A/B forces representation explicitly. At four
+workers TX-only, p1/p2 gives 68.440/68.777 Mpps with inline off and
+125.006/112.738 with inline on. In L3 q8 it gives 109.108/108.288 with inline
+on. Extra TXQs do not increase service rate once inline state is fixed.
 
-Testpmd confirms the queue-topology effect: q4/q8/q16 on four cores produces
-48.42/93.49/111.30 Mpps as each core moves from one to two to four RX/TX queue
-pairs. The original 53-versus-116 comparison was invalid because VPP had one
-active TXQ per worker while testpmd had four pairs per core.
+Two RX queues per worker do remain useful at four workers and above. The
+source supplies about 133.4 Mpps while the six-worker final reaches 117.260.
+Testpmd's 111.30-Mpps four-core result still establishes hardware headroom,
+but is not evidence that VPP needs more than one TXQ per worker.
 
 ### AF_XDP
 
@@ -203,13 +224,22 @@ below 1%. Native is a maximum under RX pressure and DPDK is a counter-clean
 near-knee point with a 0.20% RX-to-TX gap; neither is NDR. BF3 AF_XDP is outside
 scope.
 
+A matched fixed-offer follow-up shows why the CX6 inline prototype cannot be
+made unconditional. Across three 12-second windows at a 50-Mpps offer, native
+pointer / inline-retained / inline-immediate-free reaches 49.321 / 44.096 /
+43.094 Mpps. Worker cost rises from 161.4 to 180.5 and 184.8 cycles per
+successful packet. These controls are archived in
+[`data/bf3-inline-controls.csv`](data/bf3-inline-controls.csv); their shorter
+window means they inform policy but do not replace the headline 3×20 finals.
+
 ## Kernel and VPP review provenance
 
 All AF_XDP performance rows use only the submitted mlx5 cyclic-RQ ownership
 fix. The v1 discussion and Dragos Tatulea review are in the
 [`netdev` thread](https://lore.kernel.org/netdev/20260819151320.64178-1-jtollet@cisco.com/);
-the revised submission is
-[`[PATCH net v2]`](https://lore.kernel.org/netdev/20260820151558.11015-1-jtollet@cisco.com/).
+the cyclic fix is carried unchanged into
+[`[PATCH net v3 0/2]`](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/),
+whose second patch covers the separately validated MPWQE retry path.
 No performance number claims an unmodified upstream kernel.
 
 The exact VPP tree and live Gerrit state are recorded in `VPP_CHANGES.md`.

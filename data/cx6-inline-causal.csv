@@ -1,0 +1,9 @@
+hardware,driver,workload,workers,rx_queues,tx_resources_per_worker,inline_state,buffer_release,measurement,repeats,window_seconds,throughput_mpps,throughput_sd_mpps,qualification
+ConnectX-6 Dx,RDMA-DV,TX-only true Ethernet64,2,0,1,off,completion,causal_screen,1,5.046,65.478320,,pointer data segment
+ConnectX-6 Dx,RDMA-DV,TX-only true Ethernet64,2,0,1,on,completion,causal_screen,1,5.047,68.027089,,full-packet eMPW inline; VPP buffer retained to completion
+ConnectX-6 Dx,RDMA-DV,TX-only true Ethernet64,2,0,1,on,immediate,causal_screen,1,5.046,69.743941,,full-packet eMPW inline; VPP buffer released after SQ copy
+ConnectX-6 Dx,RDMA-DV,TX-only true Ethernet64,4,0,1,off,completion,causal_screen,1,5.057,68.868372,,pointer data segment
+ConnectX-6 Dx,RDMA-DV,TX-only true Ethernet64,4,0,1,on,completion,causal_screen,1,5.056,140.816453,,full-packet eMPW inline; VPP buffer retained to completion
+ConnectX-6 Dx,RDMA-DV,TX-only true Ethernet64,4,0,1,on,immediate,causal_screen,1,5.053,145.862425,,full-packet eMPW inline; VPP buffer released after SQ copy
+ConnectX-6 Dx,DPDK mlx5,TX-only true Ethernet64,4,4,1,off,completion,causal_screen,1,5.000,68.439863,,mlx5_tx_burst_sc_empw; five total TX queues
+ConnectX-6 Dx,DPDK mlx5,TX-only true Ethernet64,4,4,1,on,immediate,causal_screen,1,5.000,125.005641,,mlx5_tx_burst_sci_empw; five total TX queues

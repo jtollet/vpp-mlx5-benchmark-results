@@ -11,11 +11,13 @@ ConnectX-4, ConnectX-5, ConnectX-6 Dx and BlueField-3 through:
 
 AF_XDP is scoped to the discrete ConnectX adapters. It is not measured on
 BlueField-3, without implying that the interface is unsupported there.
-ConnectX-6 RDMA-DV and DPDK are qualified from one through six workers. Native
-uses an inactive main-thread QP and one active thread-local QP per worker;
-DPDK uses an inactive main-thread TXQ, explicitly assigned worker TXQs and
-weighted-RETA balance. ConnectX-6 AF_XDP is qualified at one and two workers
-in strict and maximum CPU layouts.
+ConnectX-6 DPDK is qualified from one through six workers. Native RDMA-DV is
+qualified at one, two, four, five and six workers in the headline profile; the
+old two-to-six-worker pointer-data-segment plateau is retained separately as a
+control. Native uses an inactive main-thread QP and one active thread-local QP
+per worker. DPDK uses an inactive main-thread TXQ, one explicitly assigned TXQ
+per worker, controlled inline state and weighted-RETA balance. ConnectX-6
+AF_XDP is qualified at one and two workers in strict and maximum CPU layouts.
 
 Only rows repeated on the frozen exact VPP tree may have numeric values in the
 public result matrix. Missing or withdrawn cells are never filled from an
@@ -167,9 +169,22 @@ revisions listed in [`VPP_CHANGES.md`](VPP_CHANGES.md), including the native
 eMPW path and RX CQ doorbell byte-order fix. The build uses DPDK 26.03 and
 rdma-core 62.0.
 
+The CX6 two-worker-and-higher full-inline results add isolated prototype commit
+`10b04d4acc6a45cbc21d469d58f79bcd4b1cba07` on that exact base. It copies a
+complete compatible packet into the eMPW WQE and can free the VPP buffer
+immediately after the SQ copy. Both prototype controls default off. A per-TXQ
+adaptive follow-up measured posted-minus-completed backlog independently, but
+its hysteresis oscillated and regressed throughput; it was rejected and no
+adaptive mode is used for a retained result.
+
 ConnectX-4 does not advertise enhanced MPW and therefore exercises native
 legacy SEND. The retained ConnectX-5, ConnectX-6 Dx and BlueField-3 native
 rows exercise eMPW.
+
+ConnectX-4 DPDK hardware-detail snapshots report `No MPW + ... + INLINE` and
+the `mlx5_tx_burst_sci` burst function. Its retained DPDK rows therefore use
+classic SEND with inline, not MPW; `txq_inline_mpw=1` was requested in the
+devargs but was not the selected runtime transmit path.
 
 Retained firmware is 12.26.4012 on ConnectX-4, 16.25.8000 on ConnectX-5,
 22.41.1000 on ConnectX-6 Dx and 32.49.1014 on BlueField-3. The CX6 global
@@ -183,16 +198,18 @@ true64 traffic-generator ceiling control for the retained three-worker
 campaign reached 42.634 Mpps; the final source means were 42.205 Mpps for
 RDMA-DV and 42.214 Mpps for DPDK. This 42.2--42.6-Mpps provenance is why the
 CX4 3W poll-mode values are marked as lower bounds; no firmware update was
-attempted as part of the measurement. CX4 AF_XDP is retained only at one and
-two workers.
+attempted as part of the measurement. CX4 AF_XDP is retained through three
+workers; its 3W maximum uses three additional IRQ/NAPI cores.
 
 AF_XDP is forced with `XDP_ZEROCOPY`, and the kernel
 `XDP_OPTIONS_ZEROCOPY` flag is checked independently on every socket. The
-AF_XDP rows use the exact mlx5 patch submitted to `netdev` as
-`[PATCH net v2]`, Message-ID
-`<20260820151558.11015-1-jtollet@cisco.com>`. The v1 review thread is
-`<20260819151320.64178-1-jtollet@cisco.com>`. They are not claims about an
-unmodified upstream kernel.
+AF_XDP rows use the cyclic-RQ fix submitted to `netdev` as `[PATCH net v2]`,
+Message-ID `<20260820151558.11015-1-jtollet@cisco.com>`, and carried unchanged
+as patch 1 of the submitted
+[`[PATCH net v3 0/2]`](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/)
+series. V3 adds the separately validated analogous MPWQE retry fix. The v1
+review thread is `<20260819151320.64178-1-jtollet@cisco.com>`. These rows are
+not claims about an unmodified upstream kernel.
 
 The archived v2 patch has SHA-256
 `066ec4397dbfab3f6cfd0ca3832b5dafb5aef4d9238bb8ad1923854fb7a9ceb1`.

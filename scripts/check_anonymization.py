@@ -16,6 +16,7 @@ SUBMITTED_PATCH = Path("patches/mlx5-af-xdp-partial-refill-double-release-fix.pa
 MESSAGE_IDS = {
     "20260819151320.64178-1-jtollet@cisco.com",
     "20260820151558.11015-1-jtollet@cisco.com",
+    "cover.1787347981.git.jtollet@cisco.com",
 }
 ALLOWED_PUBLIC_DOMAINS = {
     "creativecommons.org",
@@ -23,12 +24,14 @@ ALLOWED_PUBLIC_DOMAINS = {
     "docs.fd.io",
     "docs.kernel.org",
     "gerrit.fd.io",
+    "git.kernel.org",
     "github.com",
     "lore.kernel.org",
     "matplotlib.org",
     "networking-docs.nvidia.com",
     "purl.org",
     "raw.githubusercontent.com",
+    "sashiko.dev",
     "www.w3.org",
 }
 PATTERNS = {

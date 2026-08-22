@@ -1,7 +1,8 @@
 # VPP review-code provenance
 
-Live Gerrit state checked on **2026-08-20 21:34 CEST**. Live review state and
-the frozen benchmark revisions are deliberately separate: a newer patch set or
+Live Gerrit state checked on **2026-08-20 21:34 CEST**; change 46465 was
+rechecked independently on **2026-08-22 08:54 CEST**. Live review state and the
+frozen benchmark revisions are deliberately separate: a newer patch set or
 later merge does not change which source tree produced the measurements.
 
 ## Open reviews
@@ -10,7 +11,7 @@ later merge does not change which source tree produced the measurements.
 |---|---|---|---:|---|
 | [45505](https://gerrit.fd.io/r/c/vpp/+/45505) | PS49 `5c594cb70d5a11050d83d04dab6b7c74ab0cd419` | `NEW`; Verified +1 | PS49 | DV TX/WQE-accounting foundation. Its added offload feature is not exercised by UDP64. |
 | [46155](https://gerrit.fd.io/r/c/vpp/+/46155) | PS15 `8f86a60fadb6cb1d9a6488846f5b364054296eb3` | `NEW`; Verified +1 | PS14 | Correct verbs-port selection for QP/flow creation; setup/correctness, not a dataplane speed claim. |
-| [46465](https://gerrit.fd.io/r/c/vpp/+/46465) | PS9 `85d127f91c87ed3c3ba4cf389951815c7e54f6fb` | `NEW`; Verified +1 | PS8 | Native mlx5 eMPW transmit path; material on capable CX5/CX6/BF3 hardware. CX4 falls back automatically. |
+| [46465](https://gerrit.fd.io/r/c/vpp/+/46465) | PS9 `85d127f91c87ed3c3ba4cf389951815c7e54f6fb` | `NEW`; Verified +1; Code-Review 0 | PS8 | Native mlx5 eMPW transmit path; material on capable CX5/CX6/BF3 hardware. CX4 falls back automatically. |
 
 The current PS15 and PS9 revisions were **not** used for these results. Their
 live CI score is reported for transparency, not transferred backward to the
@@ -25,6 +26,8 @@ For 46465 PS9, one rerun was started after the preceding run failed only in
 unrelated session/TAP and broad NAT/QUIC/IPsec tests; no RDMA/eMPW path was
 exercised by those failures. The rerun completed successfully across builds,
 ARM, HST release/debug and all six make-test variants, producing Verified +1.
+The 2026-08-22 REST snapshot reports zero unresolved comments and no active
+Code-Review -1; the review is waiting for a positive reviewer score.
 
 ## Merged after the benchmark freeze
 

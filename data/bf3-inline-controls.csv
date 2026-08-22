@@ -1,0 +1,4 @@
+hardware,driver,workload,workers,rx_queues,tx_resources_per_worker,inline_state,buffer_release,measurement,repeats,window_seconds,throughput_mpps,throughput_sd_mpps,dataplane_cycles_per_packet,qualification
+BlueField-3,RDMA-DV,L3 true Ethernet64,4,4,1,off,completion,matched_control,3,12,49.320811,0.020888,161.426,fixed 50-Mpps offered-load control; not a replacement for the headline 3x20 final
+BlueField-3,RDMA-DV,L3 true Ethernet64,4,4,1,on,completion,matched_control,3,12,44.095969,0.012823,180.514,fixed 50-Mpps offered-load control; full-packet inline with buffer retained
+BlueField-3,RDMA-DV,L3 true Ethernet64,4,4,1,on,immediate,matched_control,3,12,43.094256,0.046971,184.797,fixed 50-Mpps offered-load control; full-packet inline with immediate buffer release

@@ -44,10 +44,13 @@ public review history is:
   [`<20260819151320.64178-1-jtollet@cisco.com>`](https://lore.kernel.org/netdev/20260819151320.64178-1-jtollet@cisco.com/)
 - submitted `[PATCH net v2]` with Dragos' `Reviewed-by`:
   [`<20260820151558.11015-1-jtollet@cisco.com>`](https://lore.kernel.org/netdev/20260820151558.11015-1-jtollet@cisco.com/)
+- submitted `[PATCH net v3 0/2]`, retaining the reviewed cyclic fix and adding
+  the validated MPWQE retry fix:
+  [`<cover.1787347981.git.jtollet@cisco.com>`](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/)
 - archived patch:
   [`patches/mlx5-af-xdp-partial-refill-double-release-fix.patch`](patches/mlx5-af-xdp-partial-refill-double-release-fix.patch)
 
-It remains under upstream review at the time of writing. Dragos requested a
+The v3 series remains under upstream review at the time of writing. Dragos requested a
 shorter reordered problem statement and explicit confirmation that the silent
 failure produces no warning or splat; he requested no code change. The v2
 implements those nits and adds his `Reviewed-by`. AF_XDP rows are therefore
@@ -56,6 +59,15 @@ already-fixed upstream kernel. The diagnosis is scoped
 to the reproduced legacy cyclic-RQ path and does not automatically generalize
 to striding RQ, multi-buffer traffic or unrelated drivers.
 
+An automated follow-up review raised the analogous MPWQE/striding hazard: a
+failed allocation may leave the old `skip_release_bitmap` state when the same
+WQE head is retried. The initial broad candidate was rejected after an invalid
+ownership A/B. A narrower retry fix then passed three injected allocation
+failures: stock freed the same 16 XSK pointers three times, while fixed code
+freed them once, made retries no-ops and cleared the bitmap after successful
+allocation. That fix is v3 patch 2. The performance dataset still exercises
+cyclic RQ; it does not reuse the injected MPWQE test as a throughput claim.
+
 ## Native enhanced Multi-Packet WQE
 
 The native VPP RDMA-DV test tree adds an enhanced Multi-Packet WQE path for
@@ -63,6 +75,20 @@ hardware which advertises that capability. Compatible packets are grouped in
 one session. An incompatible packet closes the current session and uses the
 existing SEND fallback; a following compatible run may open a new eMPW
 session.
+
+The original path always described each packet by address, lkey and length.
+On CX6 that representation is now proven to cause the four-worker plateau: a
+matched full-packet-inline prototype raises TX-only from 68.868 to 145.862
+Mpps and sustained L3 from the 53-Mpps pointer plateau to 124.564 Mpps at 5W. The
+prototype is disabled by default and has not been proposed as an unconditional
+mode because fixed inline regresses the CX6 one-worker screen and matched BF3
+controls.
+
+The tested adaptive follow-up used posted-minus-completed packets for each
+individual TXQ, not an aggregate device backlog. Its 10/128 hysteresis crossed
+about 250,000 times per TXQ in six seconds and reduced CX6 4W/q4 to 49.2 Mpps.
+It is rejected. Published inline rows use the explicit fixed mode with
+immediate release; OFF remains the zero-overhead baseline path.
 
 ConnectX-5, ConnectX-6 Dx and BlueField-3 advertise eMPW. ConnectX-4 does not
 and automatically remains on legacy SEND. The implementation is VPP Gerrit
