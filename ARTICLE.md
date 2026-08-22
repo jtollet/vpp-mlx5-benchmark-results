@@ -247,6 +247,41 @@ AF_XDP plugin used for the headline matrix does not request
 `SO_PREFER_BUSY_POLL`, `SO_BUSY_POLL` or epoll `EPIOCSPARAMS`; those results
 therefore exercise the classic mlx5 IRQ/NAPI service path.
 
+### What socket busy polling changes
+
+`SO_BUSY_POLL` lets a non-blocking XSK receive call drive its NAPI context for
+a bounded time instead of waiting for the next completion interrupt.
+`SO_PREFER_BUSY_POLL` asks the kernel to prefer that ownership model, while
+`SO_BUSY_POLL_BUDGET` limits the work of one NAPI callback. It removes wakeup
+and interrupt overhead; it does **not** remove mlx5e, XDP, XSK or NAPI work.
+
+The cleanest CX6 control used four workers, four XSKs and identical offered
+load. IRQ/NAPI was colocated with the owning worker and the table counts all
+CPU cycles, including time spent in the kernel:
+
+| 4W / 4Q control | Physical TX | All-in cycles / TX packet | Completion IRQs / 8 s |
+|---|---:|---:|---:|
+| Socket busy poll off | 32.084 Mpps | 508.9 | 3,666,819 |
+| 10 us, prefer, budget 64 + NAPI IRQ defer | **40.057 Mpps** | **404.3** | **16** |
+
+That is 24.9% more forwarding and 20.6% fewer all-in cycles per successful
+packet. The qualification matters: socket busy polling alone, with the
+netdevice NAPI controls left at zero, reached 34.691 Mpps (+8.1%) and reduced
+interrupts by only 21%. The full result also used
+`gro_flush_timeout=20000 ns` and `napi_defer_hard_irqs=8`; those are
+netdevice-wide controls and are deliberately not hidden inside the VPP
+interface option. The socket-only VPP support is under review in
+[Gerrit 46539](https://gerrit.fd.io/r/c/vpp/+/46539).
+
+This is also why AF_XDP CPU accounting cannot stop at VPP's thread counters.
+With classic delivery, mlx5 NAPI may execute on additional IRQ CPUs; with
+socket busy polling, the VPP worker enters the kernel and performs that work
+there. Either way those cycles sit outside the VPP graph even when they share
+the worker CPU. RDMA-DV and DPDK instead poll the device from the VPP workers,
+so their measured forwarding budget consists of the VPP main and worker
+threads, without separate kernel packet-service cores. Busy polling changes
+where and when AF_XDP's kernel cost is paid; it does not make that cost free.
+
 A later isolated 4W/4Q prototype control compared socket busy-poll budgets 64,
 128 and 256 with three 12-second windows each. Mean forwarding was 36.849,
 37.435 and 37.182 Mpps respectively. The 1.6% numerical lead of 128 over 64
