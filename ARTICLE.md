@@ -208,9 +208,12 @@ The production question is therefore when to select the representation. A
 per-TXQ adaptive prototype measured posted-minus-completed packets independently
 on every queue, but the 10/128 hysteresis crossed roughly 250,000 times per TXQ
 in six seconds on CX6 and reduced 4W/q4 forwarding to 49.2 Mpps. It is rejected.
-The retained interface is deliberately simpler: explicit `tx-empw-inline=0`
-or `64`, with immediate release for complete inlined packets. OFF preserves the
-baseline fast path; ON is selected for the qualified CX6 2W-and-higher cells.
+The retained interface is deliberately simpler and device-wide:
+`tx-empw-inline off` or `tx-empw-inline on [max-size N]`. It defaults to OFF;
+ON defaults to 60 bytes, the VPP-buffer length of a physical Ethernet-64
+packet, and releases a buffer immediately after copying the complete packet
+into the SQ. OFF preserves the baseline fast path; ON is selected for the
+qualified CX6 2W-and-higher cells.
 No adaptive result appears in this article or its CSV.
 
 ## AF_XDP: zero-copy is not zero CPU
@@ -240,9 +243,20 @@ was added by commit
 [`7fd3253a7de6`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7fd3253a7de6a317a0683f83739479fb880bffc8)
 for Linux 5.11 and works with NAPI defer and timeout controls documented in
 the [kernel NAPI guide](https://docs.kernel.org/networking/napi.html). The VPP
-AF_XDP plugin used here does not request `SO_PREFER_BUSY_POLL`, `SO_BUSY_POLL`
-or epoll `EPIOCSPARAMS`; these measurements therefore exercise the classic
-mlx5 IRQ/NAPI service path. The newer
+AF_XDP plugin used for the headline matrix does not request
+`SO_PREFER_BUSY_POLL`, `SO_BUSY_POLL` or epoll `EPIOCSPARAMS`; those results
+therefore exercise the classic mlx5 IRQ/NAPI service path.
+
+A later isolated 4W/4Q prototype control compared socket busy-poll budgets 64,
+128 and 256 with three 12-second windows each. Mean forwarding was 36.849,
+37.435 and 37.182 Mpps respectively. The 1.6% numerical lead of 128 over 64
+was smaller than run-to-run dispersion, while 256 was 0.7% below 128 and had
+slightly worse queue fairness. This does not justify tying the kernel budget
+to VPP's 256-packet frame size: the feature remains off by default, 64 is the
+omitted-budget value when explicitly enabled, and 128 is only a candidate for
+a longer revalidation.
+
+The newer
 [`c18d4b190a46`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c18d4b190a46651726c9a952667c74d2deb33c28)
 threaded-busy-poll mode can leave interrupts unarmed and pin NAPI to a kernel
 thread, but it moves the work to a dedicated kernel CPU rather than making it
