@@ -1,4 +1,4 @@
-# Three VPP datapaths for NVIDIA ConnectX and BlueField at 64 bytes
+# Three VPP datapaths for NVIDIA ConnectX and BlueField
 
 > **Code provenance.** Some retained rows use disabled-by-default review code.
 > Exact revisions and the status of every affected result are published with
@@ -24,7 +24,6 @@ CPUs as VPP.
 DPDK is the useful second control because it also polls the NIC from VPP.
 Across CX5, CX6 and BF3, RDMA-DV leads tuned DPDK in 14 of 15 paired cells;
 the sole exception is CX5 at six workers, by 1.5%. CX4 is effectively a draw.
-The underlying transmit mechanisms are examined only after the results.
 
 ## What was measured
 
@@ -58,10 +57,9 @@ on CX4, 4.4--4.6 times faster on CX5, and 2.3--4.3 times faster on CX6.
 AF_XDP was not measured on BF3 by study scope; this is not a capability claim.
 
 DPDK remains fully visible in the same figure. BF3 is the strongest native-
-versus-DPDK result: RDMA-DV leads by 38.5%, 29.4%, 31.0%, 16.4% and 22.8% at
-one, two, four, five and six workers. CX6 also favors native at every retained
-count. The CX5 6W reversal is deliberately left visible: DPDK leads there by
-1.5%.
+versus-DPDK result: RDMA-DV leads by 16--39%, depending on worker count. CX6
+also favors native at every retained count. The CX5 6W reversal remains
+visible: DPDK leads there by 1.5%.
 
 The CPU view uses two workers. For AF_XDP the bars include all kernel execution
 on the colocated IRQ/NAPI CPUs. Native needs 134--218 cycles per packet against
@@ -70,9 +68,9 @@ on the colocated IRQ/NAPI CPUs. Native needs 134--218 cycles per packet against
 ![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/285433e/charts/cpu-budget.png)
 
 Two limits matter when reading the throughput curve. CX4 reaches its measured
-43-Mpps traffic-generator ceiling at three poll-mode workers, so those two
-points are lower bounds. CX6 RDMA-DV at six workers is likewise source-limited
-at 137 Mpps. Neither boundary applies to the AF_XDP points.
+43-Mpps traffic-generator ceiling at three poll-mode workers, so the RDMA-DV
+and DPDK three-worker points are lower bounds. CX6 RDMA-DV at six workers is
+likewise source-limited at 137 Mpps. Neither boundary applies to AF_XDP.
 
 ## What separates the three datapaths
 
@@ -110,7 +108,7 @@ kept in the data but omitted from the graph.
 ![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/cx6-inline-root-cause.png)
 
 The full L3 tests use one dedicated QP per worker, an inactive main QP and
-balanced RX placement. With the corrected placement, RDMA-DV reaches **61,
+balanced RX placement. RDMA-DV reaches **61,
 109, 127 and 137 Mpps** at two, four, five and six workers. The six-worker
 point is source-limited. Full-packet inline is enabled from two workers upward;
 the exact queue maps, fairness and pressure counters remain in the dataset.
@@ -152,7 +150,7 @@ kernel work on the four declared workers:
 | 4W / 4Q control | Physical TX | All-in cycles / TX packet | Completion IRQs / 8 s |
 |---|---:|---:|---:|
 | Socket busy poll off | 32 Mpps | 509 | 3.7 million |
-| 10 us, prefer, budget 64 + NAPI IRQ defer | **40 Mpps** | **404** | **16** |
+| 10 µs, prefer, budget 64 + NAPI IRQ defer | **40 Mpps** | **404** | **16** |
 
 On CX6, socket busy polling combined with NAPI IRQ defer raises forwarding
 from 32 to 40 Mpps and lowers CPU cost from 509 to 404 cycles per packet.
@@ -169,8 +167,8 @@ pointer and release the same UMEM frame twice. Both cyclic and MPWQE receive
 paths were affected, without producing a kernel warning.
 
 The proposed fixes make buffer release safe across refill retries. The cyclic
-reproducer failed after 2.9 million packets on the stock kernel, then processed
-356.9 million without an ownership error after the fix; an injected-failure
+reproducer failed after about 3 million packets on the stock kernel. With the
+fix, it processed 357 million without an ownership error. An injected-failure
 test also validated the MPWQE change. The two-patch
 [`v3 series`](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/)
 is currently under review on `netdev` and is not yet upstream.
