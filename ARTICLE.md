@@ -67,7 +67,7 @@ The CPU view uses two workers. For AF_XDP the bars include all kernel execution
 on the colocated IRQ/NAPI CPUs. Native needs 134--218 cycles per packet against
 381--800 for AF_XDP.
 
-![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/cpu-budget.png)
+![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/285433e/charts/cpu-budget.png)
 
 Two limits matter when reading the throughput curve. CX4 reaches its measured
 43-Mpps traffic-generator ceiling at three poll-mode workers, so those two
