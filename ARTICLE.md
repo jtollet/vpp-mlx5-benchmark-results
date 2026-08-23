@@ -56,7 +56,7 @@ the CSV. For AF_XDP, CPU-wide counters on the declared main and worker CPUs
 include colocated IRQ/NAPI and kernel XSK work; no auxiliary packet-service
 CPU is allowed in the retained matrix.
 
-![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/throughput-scaling.png)
+![True64 throughput across workers](charts/throughput-scaling.png)
 
 ## What the curves say
 
@@ -78,7 +78,7 @@ needs roughly 90--218 cycles per packet in the illustrated 1W/2W cells,
 against 381--866 for AF_XDP. DPDK remains much closer to native because both
 paths poll device queues directly from VPP.
 
-![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
+![All-in cycles per successful packet](charts/cpu-budget.png)
 
 Two limits matter when reading the throughput curve. CX4 reaches its measured
 42.63-Mpps traffic-generator ceiling at three poll-mode workers, so those two
@@ -133,7 +133,7 @@ raises it only another 3.6%, to **145.862 Mpps**. The main gain is therefore
 the elimination of per-packet external reads, not buffer lifetime. The result
 is 98.0% of the 148.81-Mpps Ethernet64 packet-rate ceiling.
 
-![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cx6-inline-root-cause.png)
+![CX6 eMPW inline root cause](charts/cx6-inline-root-cause.png)
 
 This does not claim that aggregate PCIe byte bandwidth was exhausted. It
 localizes the limit to the transaction/service cost of pointer data segments:
