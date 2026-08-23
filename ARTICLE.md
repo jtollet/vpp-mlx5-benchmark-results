@@ -60,7 +60,7 @@ the CSV. For AF_XDP, CPU-wide counters on the declared main and worker CPUs
 include colocated IRQ/NAPI and kernel XSK work; no auxiliary packet-service
 CPU is allowed in the retained matrix.
 
-![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/4b61d7d/charts/throughput-scaling.png)
+![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/18c67b9/charts/throughput-scaling.png)
 
 ## What the curves say
 
@@ -81,7 +81,7 @@ execution on the colocated IRQ/NAPI CPUs. The native driver needs roughly
 134--218 cycles per packet, against 381--800 for AF_XDP. DPDK remains much
 closer to native because both paths poll device queues directly from VPP.
 
-![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/4b61d7d/charts/cpu-budget.png)
+![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/18c67b9/charts/cpu-budget.png)
 
 Two limits matter when reading the throughput curve. CX4 reaches its measured
 42.6-Mpps traffic-generator ceiling at three poll-mode workers, so those two
@@ -121,7 +121,7 @@ packet-rate ceiling. Retaining the VPP buffer until completion or releasing it
 after the copy changes the result only slightly; that distinction is therefore
 kept in the data but omitted from the graph.
 
-![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/4b61d7d/charts/cx6-inline-root-cause.png)
+![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/18c67b9/charts/cx6-inline-root-cause.png)
 
 The full L3 finals keep one dedicated QP per worker and an inactive main QP.
 At 2W, the measured warm-up pairs one queue from each RSS rate class on each
