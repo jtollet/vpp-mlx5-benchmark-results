@@ -10,7 +10,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS = ROOT / "data" / "results.csv"
 CONFIGURATIONS = ROOT / "data" / "configurations.csv"
-ARTICLE = ROOT / "ARTICLE.md"
 CX6_INLINE = ROOT / "data" / "cx6-inline-causal.csv"
 BF3_INLINE = ROOT / "data" / "bf3-inline-controls.csv"
 FINAL_STATUSES = {"final", "provisional"}
@@ -46,16 +45,10 @@ def key(row: dict[str, str]) -> tuple[str, str, str, str]:
     return row["hardware"], row["driver"], row["profile"], row["workers"]
 
 
-def check_article_claims(
+def check_comparison_invariants(
     result_by_key: dict[tuple[str, str, str, str], dict[str, str]],
 ) -> None:
-    """Keep the graph-led article claims synchronized with the CSV."""
-    text = ARTICLE.read_text(encoding="utf-8")
-    normalized_text = " ".join(text.split())
-    assert "| Platform | Datapath |" not in text, "redundant result table returned"
-    assert "charts/throughput-scaling.png" in text, "missing full-value throughput graph"
-    assert "charts/cpu-budget.png" in text, "missing CPU-cost illustration"
-
+    """Guard the cross-driver comparisons supported by the published data."""
     af_pairs = []
     for (hardware, driver, profile, workers), rdma in result_by_key.items():
         af = result_by_key.get((hardware, "AF_XDP ZC", "strict", workers))
@@ -66,8 +59,6 @@ def check_article_claims(
         for rdma, af in af_pairs
     ]
     assert af_pairs and all(ratio > 1 for ratio in throughput_ratios)
-    assert f"{min(throughput_ratios):.1f} to {max(throughput_ratios):.1f}" in text
-    assert "faster than AF_XDP at every matched worker count" in normalized_text
 
     dpdk_pairs = []
     for hardware in ("ConnectX-5", "ConnectX-6 Dx", "BlueField-3"):
@@ -78,7 +69,6 @@ def check_article_claims(
                 float(rdma["throughput_mpps"]) >= float(dpdk["throughput_mpps"])
             )
     assert sum(dpdk_pairs) == 14 and len(dpdk_pairs) == 15
-    assert "14 of 15 paired cells" in text
 
 
 def check_inline_controls() -> None:
@@ -99,6 +89,7 @@ def check_inline_controls() -> None:
     }
     for cell, value in expected.items():
         assert abs(observed[cell] - value) < 0.000001, f"CX6 causal mismatch: {cell}"
+    assert {row["inline_state"] for row in cx6} <= {"off", "on"}
 
     bf3 = read(BF3_INLINE)
     assert len(bf3) == 3, "unexpected BF3 inline-control count"
@@ -108,9 +99,7 @@ def check_inline_controls() -> None:
         44.095969,
         43.094256,
     ]
-
-    article = ARTICLE.read_text(encoding="utf-8")
-    assert "adaptive prototype was tested and rejected" in article
+    assert {row["inline_state"] for row in bf3} <= {"off", "on"}
 
 
 def main() -> None:
@@ -186,12 +175,12 @@ def main() -> None:
         cell = "ConnectX-4", driver, "primary", "3"
         assert "source-limited" in result_by_key[cell]["qualification"], cell
 
-    check_article_claims(result_by_key)
+    check_comparison_invariants(result_by_key)
     check_inline_controls()
 
     print(
         f"Data audit passed: {len(results)} matched true64 cells; final 3x20, "
-        "accounting, placement and article-claim guards valid; pending cells contain no "
+        "accounting, placement and comparison guards valid; pending cells contain no "
         "measurements."
     )
 

@@ -14,7 +14,6 @@ provenance remain distinct.
 
 ## Contents
 
-- [`ARTICLE.md`](ARTICLE.md): source copy of the published article.
 - [`METHODOLOGY.md`](METHODOLOGY.md): workload, qualification, placement and CPU
   accounting.
 - [`VPP_CHANGES.md`](VPP_CHANGES.md): exact tested VPP revisions and public
