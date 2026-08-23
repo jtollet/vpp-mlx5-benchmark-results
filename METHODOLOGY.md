@@ -13,7 +13,7 @@ AF_XDP is scoped to the discrete ConnectX adapters. It is not measured on
 BlueField-3, without implying that the interface is unsupported there.
 CX4 poll-mode paths are qualified at one, two and three workers; the 3W rows
 are source-limited. CX5 and BF3 RDMA-DV/DPDK are qualified at one, two, four,
-five and six workers. CX5 AF_XDP is qualified at one, two, four and five.
+five and six workers. CX5 AF_XDP is qualified at one, two, four, five and six.
 ConnectX-6 DPDK is qualified at one, two, four, five and six workers. Native RDMA-DV is
 qualified at one, two, four, five and six workers in the headline profile; the
 old two-to-six-worker pointer-data-segment plateau is retained separately as a

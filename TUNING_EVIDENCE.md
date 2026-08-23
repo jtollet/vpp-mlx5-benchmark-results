@@ -141,6 +141,7 @@ CPU-wide counters include that kernel work.
 | 2 | 10.112 | 609.3 | 34.8 | ≤0.006% |
 | 4 | 14.153 | 871.0 | 25.2 | ≤0.009% |
 | 5 | 14.157 | 1076.3 | 25.9 | ≤0.561% |
+| 6 | 14.093 | 1297.5 | 27.2 | ≤0.525% |
 
 RX4096/TX1024 is retained. Buffers from 524k to 2M, coalescing screens and the
 legacy syscall lock did not yield a monotonic sustained gain. Socket busy
@@ -148,10 +149,10 @@ polling is neutral to slightly negative in the post-fix 3×20 A/B and remains
 off. The requested fixed 8-usec/128-frame moderation reads back as 3 usec/32
 frames on this mlx5 stack. Deeper rings delay pressure; they do not raise
 service rate. The 2W→4W plateau is a TX/XSK service limit, not an inactive or
-unfair queue. The RETA-corrected 5W point is also a qualified 3x20-second
-control with the exact W+1 topology and no auxiliary CPU. Its 0.028% gain over
-4W costs 23.0% more all-CPU cycles per packet and substantially more TX
-pressure, confirming the plateau; there is no qualified 6W publication cell.
+unfair queue. The RETA-corrected 5W and 6W points are also qualified
+3x20-second controls with the exact W+1 topology and no auxiliary CPU. Five
+workers is flat against 4W, while 6W reaches 14.093 Mpps and costs 1324.8
+all-CPU cycles per packet. Both confirm the same TX-side plateau.
 
 ## ConnectX-6 Dx
 

@@ -271,14 +271,13 @@ def cx6_inline_chart():
         ]
 
     modes = [
-        ("off", "completion", "Pointer data segment", "#777777"),
-        ("on", "completion", "Full inline, retain buffer", "#55a79f"),
-        ("on", "immediate", "Full inline, immediate free", "#16857b"),
+        ("off", "completion", "Pointer to packet buffer", "#777777"),
+        ("on", "immediate", "Full-packet inline", "#16857b"),
     ]
-    workers = [2, 4]
+    workers = [4]
     x = np.arange(len(workers))
-    width = 0.25
-    fig, ax = plt.subplots(figsize=(9.6, 5.4))
+    width = 0.34
+    fig, ax = plt.subplots(figsize=(7.6, 5.2))
 
     for index, (inline_state, release, label, color) in enumerate(modes):
         values = []
@@ -291,23 +290,23 @@ def cx6_inline_chart():
                 and row["buffer_release"] == release
             )
             values.append(float(row["throughput_mpps"]))
-        bars = ax.bar(x + (index - 1) * width, values, width, label=label, color=color)
+        bars = ax.bar(x + (index - 0.5) * width, values, width, label=label, color=color)
         ax.bar_label(bars, labels=[f"{value:.1f}" for value in values], padding=3, fontsize=9)
 
-    ax.set_xticks(x, ["2 workers", "4 workers"])
+    ax.set_xticks(x, ["4 workers"])
     ax.set_ylabel("Successful physical TX (Mpps)")
     ax.set_ylim(0, 158)
     ax.grid(axis="y", alpha=0.25)
     ax.set_axisbelow(True)
     ax.legend(frameon=False, loc="upper left")
     ax.set_title(
-        "CX6 TX-only: full-packet eMPW inline removes the pointer-DMA ceiling",
+        "CX6 TX-only: packet reference versus full-packet inline",
         fontweight="bold",
     )
     fig.text(
         0.5,
         0.01,
-        "True Ethernet64, one raw QP per worker; single matched 5-second causal screens",
+        "True Ethernet64, one raw QP per worker; matched 5-second causal screens",
         ha="center",
         fontsize=9,
     )
@@ -316,47 +315,45 @@ def cx6_inline_chart():
 
 
 def cpu_chart(rows):
-    fig, axes = plt.subplots(1, 2, figsize=(13.0, 5.3), sharey=True)
+    fig, ax = plt.subplots(figsize=(10.2, 5.3))
     width = 0.24
     group_x = np.arange(len(HARDWARE))
+    workers = 2
 
-    for ax, workers in zip(axes, (1, 2)):
-        for index, driver in enumerate(DRIVERS):
-            values = []
-            for hardware in HARDWARE:
-                row = find(rows, hardware, driver, workers)
-                values.append(row["dataplane_cycles_per_packet"] if row else np.nan)
-            positions = group_x + (index - 1) * width
-            bars = ax.bar(
-                positions,
-                values,
-                width,
-                color=COLORS[driver],
-                hatch="//" if driver == "AF_XDP ZC" else None,
-                label=LABELS[driver],
+    for index, driver in enumerate(DRIVERS):
+        values = []
+        for hardware in HARDWARE:
+            row = find(rows, hardware, driver, workers)
+            values.append(row["dataplane_cycles_per_packet"] if row else np.nan)
+        positions = group_x + (index - 1) * width
+        bars = ax.bar(
+            positions,
+            values,
+            width,
+            color=COLORS[driver],
+            hatch="//" if driver == "AF_XDP ZC" else None,
+            label=LABELS[driver],
+        )
+        for bar, value in zip(bars, values):
+            if np.isnan(value):
+                continue
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                value * 1.08,
+                f"{value:.0f}",
+                ha="center",
+                va="bottom",
+                fontsize=8,
+                rotation=90,
             )
-            for bar, value in zip(bars, values):
-                if np.isnan(value):
-                    continue
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2,
-                    value * 1.08,
-                    f"{value:.0f}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=8,
-                    rotation=90,
-                )
-        ax.set_yscale("log")
-        ax.set_ylim(70, 2600)
-        ax.set_xticks(group_x, HARDWARE)
-        ax.tick_params(axis="x", rotation=12)
-        ax.grid(axis="y", which="both", alpha=0.25)
-        ax.set_axisbelow(True)
-        ax.set_title(f"{workers} worker{'s' if workers > 1 else ''}", fontweight="bold")
-
-    axes[0].set_ylabel("Dataplane cycles per successful packet (log scale; lower is better)")
-    handles, labels = axes[0].get_legend_handles_labels()
+    ax.set_yscale("log")
+    ax.set_ylim(70, 2600)
+    ax.set_xticks(group_x, HARDWARE)
+    ax.tick_params(axis="x", rotation=12)
+    ax.grid(axis="y", which="both", alpha=0.25)
+    ax.set_axisbelow(True)
+    ax.set_ylabel("Dataplane cycles per successful packet (log scale; lower is better)")
+    handles, labels = ax.get_legend_handles_labels()
     fig.legend(
         handles,
         labels,
@@ -366,7 +363,7 @@ def cpu_chart(rows):
         frameon=False,
     )
     fig.suptitle(
-        "All dataplane CPUs counted — AF_XDP includes colocated IRQ/NAPI kernel work",
+        "Two workers — AF_XDP includes colocated IRQ/NAPI kernel work",
         y=0.99,
         fontsize=14,
         fontweight="bold",

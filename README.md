@@ -23,7 +23,7 @@ with inline state controlled independently of TXQ count. ConnectX-6 native is
 qualified at one, two, four, five and six workers; full inline is selected from
 two workers upward, while the old two-to-six-worker pointer plateau is retained
 as a separate control profile. AF_XDP is qualified at 1/2/3 workers on CX4,
-1/2/4/5 on CX5 and 1/2/4/5/6 on CX6, and is not measured on BlueField-3 by
+1/2/4/5/6 on CX5 and CX6, and is not measured on BlueField-3 by
 study scope.
 
 AF_XDP measurements are complete for the cyclic-RQ fix carried unchanged into

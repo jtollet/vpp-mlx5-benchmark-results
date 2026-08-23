@@ -66,7 +66,7 @@ def check_article_claims(
         for rdma, af in af_pairs
     ]
     assert af_pairs and all(ratio > 1 for ratio in throughput_ratios)
-    assert f"{min(throughput_ratios):.2f} to {max(throughput_ratios):.2f}" in text
+    assert f"{min(throughput_ratios):.1f} to {max(throughput_ratios):.1f}" in text
     assert "faster than AF_XDP at every matched worker count" in normalized_text
 
     dpdk_pairs = []
