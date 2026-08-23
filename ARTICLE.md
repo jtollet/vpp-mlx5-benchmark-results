@@ -195,9 +195,6 @@ mean higher packet rate.
 3. **AF_XDP's kernel work must be counted.** Zero-copy is valuable, but in this
    forwarding workload it costs far more all-in CPU and achieves less
    throughput than RDMA-DV.
-4. **Pressure counters define the claim.** Maximum forwarding, source-limited
-   lower bounds and zero-loss NDR are different results and stay labelled as
-   such.
 
 The exact result CSV, the [`CX6 inline causal A/B`](data/cx6-inline-causal.csv), the
 [`BF3 inline controls`](data/bf3-inline-controls.csv), placement ledger,
