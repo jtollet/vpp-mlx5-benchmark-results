@@ -200,13 +200,24 @@ The exact result CSV, the [`CX6 inline causal A/B`](data/cx6-inline-causal.csv),
 [`BF3 inline controls`](data/bf3-inline-controls.csv), placement ledger,
 methodology, tuning evidence, submitted kernel patch and figure sources are
 available in the companion repository.
-The frozen VPP tree includes the merged RX CQ doorbell fix and the reviewed
-changes tracked in [`VPP_CHANGES.md`](VPP_CHANGES.md); the native eMPW change
-remains review code in [Gerrit 46465](https://gerrit.fd.io/r/c/vpp/+/46465),
-with full-packet inline in [46540](https://gerrit.fd.io/r/c/vpp/+/46540),
-optional AF_XDP busy polling in
-[46539](https://gerrit.fd.io/r/c/vpp/+/46539) and the `W+1` refill fix in
-[46547](https://gerrit.fd.io/r/c/vpp/+/46547).
+The exact tested VPP revisions are recorded in
+[`VPP_CHANGES.md`](VPP_CHANGES.md).
+
+## Changes under review
+
+This work produced the following patches. The four VPP changes are open,
+`Verified +1` and have no unresolved review comments at the time of writing.
+
+### VPP
+
+- [Native mlx5 eMPW transmit path](https://gerrit.fd.io/r/c/vpp/+/46465).
+- [Optional device-wide full-packet eMPW inline](https://gerrit.fd.io/r/c/vpp/+/46540).
+- [Optional AF_XDP socket busy polling](https://gerrit.fd.io/r/c/vpp/+/46539).
+- [AF_XDP refill bound for the extra main-thread TX socket](https://gerrit.fd.io/r/c/vpp/+/46547).
+
+### Linux kernel
+
+- [mlx5e AF_XDP buffer-ownership fixes for cyclic RQ and MPWQE refill retries](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/).
 
 ## Glossary
 
