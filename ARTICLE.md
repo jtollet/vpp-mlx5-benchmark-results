@@ -102,7 +102,7 @@ from its VPP buffer. With full-packet inline, VPP copies the packet bytes into
 the WQE and the separate DMA read is avoided.
 
 In the matched four-worker TX-only control, the referenced-buffer form reaches
-68.9 Mpps and full-packet inline reaches 145.9 Mpps, or 98% of the Ethernet64
+69 Mpps and full-packet inline reaches 146 Mpps, or 98% of the Ethernet64
 packet-rate ceiling. Retaining the VPP buffer until completion or releasing it
 after the copy changes the result only slightly; that distinction is therefore
 kept in the data but omitted from the graph.
