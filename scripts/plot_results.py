@@ -18,6 +18,7 @@ matplotlib.rcParams["svg.hashsalt"] = "vpp-mlx5-benchmark-results"
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "results.csv"
 CX6_INLINE_DATA = ROOT / "data" / "cx6-inline-causal.csv"
+CX6_300B_DATA = ROOT / "data" / "cx6-300b-cpu.csv"
 CHARTS = ROOT / "charts"
 
 HARDWARE = ["ConnectX-4", "ConnectX-5", "ConnectX-6 Dx", "BlueField-3"]
@@ -120,6 +121,13 @@ def throughput_chart(rows):
             )
             for point, workers, value in zip(points, x, y):
                 suffix = "+" if "source-limited" in point["qualification"] else ""
+                value_label = (
+                    f"{value:.0f}"
+                    if hardware == "ConnectX-6 Dx"
+                    and driver == "RDMA-DV"
+                    and workers == 6
+                    else f"{value:.1f}"
+                )
                 # Keep nearby low-rate series readable.  Native labels sit
                 # above the marker, while DPDK and AF_XDP use two different
                 # offsets below it.  This is especially important for CX4,
@@ -128,7 +136,7 @@ def throughput_chart(rows):
                 y_offset = -14 if driver == "DPDK mlx5" else -5 if driver == "AF_XDP ZC" else 8
                 x_offset = -11 if driver == "RDMA-DV" else 11 if driver == "DPDK mlx5" else 0
                 ax.annotate(
-                    f"{value:.1f}{suffix}",
+                    f"{value_label}{suffix}",
                     (workers, value),
                     xytext=(x_offset, y_offset),
                     textcoords="offset points",
@@ -146,7 +154,7 @@ def throughput_chart(rows):
                 zorder=0,
             )
             ax.annotate(
-                f"Measured traffic-generator ceiling (true64): {CX4_TRUE64_TG_CEILING_MPPS:.1f} Mpps",
+                f"Measured traffic-generator ceiling (true64): {CX4_TRUE64_TG_CEILING_MPPS:.0f} Mpps",
                 xy=(0.68, CX4_TRUE64_TG_CEILING_MPPS),
                 xytext=(0, 7),
                 textcoords="offset points",
@@ -315,7 +323,13 @@ def cx6_inline_chart():
 
 
 def cpu_chart(rows):
-    fig, ax = plt.subplots(figsize=(10.2, 5.3))
+    fig, (ax, ax_300) = plt.subplots(
+        1,
+        2,
+        figsize=(12.6, 5.3),
+        sharey=True,
+        gridspec_kw={"width_ratios": [2.4, 1]},
+    )
     width = 0.24
     group_x = np.arange(len(HARDWARE))
     workers = 2
@@ -352,7 +366,34 @@ def cpu_chart(rows):
     ax.tick_params(axis="x", rotation=12)
     ax.grid(axis="y", which="both", alpha=0.25)
     ax.set_axisbelow(True)
-    ax.set_ylabel("Dataplane cycles per successful packet (log scale; lower is better)")
+    ax.set_ylabel("CPU cycles per successful packet\n(log scale; lower is better)")
+    ax.set_title("Ethernet64", fontweight="bold")
+
+    with CX6_300B_DATA.open(newline="", encoding="utf-8") as stream:
+        rows_300 = {row["driver"]: row for row in csv.DictReader(stream)}
+    x_300 = np.arange(len(DRIVERS))
+    values_300 = [float(rows_300[driver]["dataplane_cycles_per_packet"]) for driver in DRIVERS]
+    bars_300 = ax_300.bar(
+        x_300,
+        values_300,
+        color=[COLORS[driver] for driver in DRIVERS],
+        hatch=[None, None, "//"],
+        width=0.62,
+    )
+    for bar, value in zip(bars_300, values_300):
+        ax_300.text(
+            bar.get_x() + bar.get_width() / 2,
+            value * 1.08,
+            f"{value:.0f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+    ax_300.set_xticks(x_300, ["RDMA-DV", "DPDK", "AF_XDP"])
+    ax_300.tick_params(axis="x", rotation=10)
+    ax_300.grid(axis="y", which="both", alpha=0.25)
+    ax_300.set_axisbelow(True)
+    ax_300.set_title("CX6, 300-byte packets", fontweight="bold")
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(
         handles,
@@ -368,7 +409,14 @@ def cpu_chart(rows):
         fontsize=14,
         fontweight="bold",
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.84))
+    fig.text(
+        0.5,
+        0.005,
+        "Each bar uses that datapath's qualified maximum; CX6 300-byte RDMA-DV and DPDK are source-limited",
+        ha="center",
+        fontsize=9,
+    )
+    fig.tight_layout(rect=(0.04, 0.04, 1, 0.84))
     save(fig, "cpu-budget")
 
 

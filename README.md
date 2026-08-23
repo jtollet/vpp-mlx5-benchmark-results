@@ -45,6 +45,8 @@ code-provenance caveat, not unfinished measurement.
   pointer/inline root-cause screens for native RDMA-DV and DPDK.
 - [`data/bf3-inline-controls.csv`](data/bf3-inline-controls.csv): matched BF3
   evidence showing why fixed always-on inline is not a universal policy.
+- [`data/cx6-300b-cpu.csv`](data/cx6-300b-cpu.csv): separate CX6 two-worker
+  300-byte throughput and whole-CPU cost control.
 - [`data/configurations.csv`](data/configurations.csv): retained tuning and
   scope state, including main/worker CPU and NUMA placement, RXQ-to-worker mapping,
   TXQ/QP producer ownership, sharing and balance evidence.

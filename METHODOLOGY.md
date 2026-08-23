@@ -30,11 +30,16 @@ for the exact submitted-but-unmerged kernel fix; upstream applicability keeps
 a separate provenance caveat until that fix is accepted.
 
 This is a best-found-configuration study, not a controlled NIC-generation
-shoot-out. ConnectX-4 uses a Skylake Xeon Gold 6146, ConnectX-5 a Cascade Lake
-Xeon Gold 6248R, ConnectX-6 Dx a Sapphire Rapids host with PCIe 4, and
-BlueField-3 its embedded Arm cores. Mpps describes each complete platform.
+shoot-out. ConnectX-4 uses Skylake-SP (2017), ConnectX-5 Cascade Lake Refresh
+(2020), ConnectX-6 Dx Emerald Rapids (2023), and BlueField-3 its embedded
+Cortex-A78AE cores (2020). Mpps describes each complete platform.
 
 ## Workload
+
+A separate CX6 two-worker diagnostic uses 300-byte frames and the same CPU
+placement and accounting rules. It is repeated in three 20-second windows but
+does not belong to the headline Ethernet64 result matrix; its RDMA-DV and DPDK
+points are source-limited.
 
 - Frames are 64 bytes including FCS at the MAC counter. VPP PG creates a
   60-byte buffer and the NIC appends the four-byte FCS.
