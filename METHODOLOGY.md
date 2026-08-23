@@ -108,8 +108,7 @@ python3 scripts/plot_results.py
 The frozen VPP integration revision is
 `83d45adb1b624d66ed09c90ba7e0f1484b89587e`, with source tree
 `00e03df873befc01bb7fdfcc5f800b0a0ebc595f`. It uses DPDK 26.03 and rdma-core
-62.0. Exact VPP patch sets and their public Gerrit links are listed in
-[`VPP_CHANGES.md`](VPP_CHANGES.md).
+62.0. The public VPP reviews are linked from the published article.
 
 AF_XDP results use the submitted mlx5e ownership fix. The public
 [`netdev v3 series`](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/)

@@ -8,16 +8,13 @@ zero-copy for same-port IPv4 forwarding of physical 64-byte Ethernet frames.
 It covers ConnectX-4, ConnectX-5, ConnectX-6 Dx and BlueField-3 with one to six
 workers where the platform and traffic source provide headroom.
 
-Some retained rows use disabled-by-default review code. Exact tested revisions
-and links to the public reviews are included so that review status and measured
-provenance remain distinct.
+Some retained rows use disabled-by-default review code. Their review status and
+public links are documented in the published article.
 
 ## Contents
 
 - [`METHODOLOGY.md`](METHODOLOGY.md): workload, qualification, placement and CPU
   accounting.
-- [`VPP_CHANGES.md`](VPP_CHANGES.md): exact tested VPP revisions and public
-  Gerrit links.
 - [`data/results.csv`](data/results.csv): throughput, CPU scopes and
   qualification labels.
 - [`data/configurations.csv`](data/configurations.csv): queue ownership,
