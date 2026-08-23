@@ -48,7 +48,7 @@ marks a source-limited lower bound. CPU cost is measured CPU cycles divided by
 successful physical TX packets. For AF_XDP this includes IRQ, NAPI, XDP and
 XSK work on the declared CPUs; no auxiliary packet-service CPU is used.
 
-![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/18c67b9/charts/throughput-scaling.png)
+![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/throughput-scaling.png)
 
 ## What the curves say
 
@@ -70,7 +70,7 @@ packets, beyond the full-packet-inline threshold: RDMA-DV and DPDK both reach
 the source limit near 40 Mpps at 207 cycles per packet, while AF_XDP reaches
 13 Mpps at 626 cycles.
 
-![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/18c67b9/charts/cpu-budget.png)
+![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/cpu-budget.png)
 
 Two limits matter when reading the throughput curve. CX4 reaches its measured
 43-Mpps traffic-generator ceiling at three poll-mode workers, so those two
@@ -110,7 +110,7 @@ packet-rate ceiling. Retaining the VPP buffer until completion or releasing it
 after the copy changes the result only slightly; that distinction is therefore
 kept in the data but omitted from the graph.
 
-![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/18c67b9/charts/cx6-inline-root-cause.png)
+![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/cx6-inline-root-cause.png)
 
 The full L3 tests use one dedicated QP per worker, an inactive main QP and
 balanced RX placement. With the corrected placement, RDMA-DV reaches **61,
