@@ -18,7 +18,6 @@ matplotlib.rcParams["svg.hashsalt"] = "vpp-mlx5-benchmark-results"
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "results.csv"
 CX6_INLINE_DATA = ROOT / "data" / "cx6-inline-causal.csv"
-CX6_300B_DATA = ROOT / "data" / "cx6-300b-cpu.csv"
 CHARTS = ROOT / "charts"
 
 HARDWARE = ["ConnectX-4", "ConnectX-5", "ConnectX-6 Dx", "BlueField-3"]
@@ -323,13 +322,7 @@ def cx6_inline_chart():
 
 
 def cpu_chart(rows):
-    fig, (ax, ax_300) = plt.subplots(
-        1,
-        2,
-        figsize=(12.6, 5.3),
-        sharey=True,
-        gridspec_kw={"width_ratios": [2.4, 1]},
-    )
+    fig, ax = plt.subplots(figsize=(10.2, 5.3))
     width = 0.24
     group_x = np.arange(len(HARDWARE))
     workers = 2
@@ -367,33 +360,6 @@ def cpu_chart(rows):
     ax.grid(axis="y", which="both", alpha=0.25)
     ax.set_axisbelow(True)
     ax.set_ylabel("CPU cycles per successful packet\n(log scale; lower is better)")
-    ax.set_title("Ethernet64", fontweight="bold")
-
-    with CX6_300B_DATA.open(newline="", encoding="utf-8") as stream:
-        rows_300 = {row["driver"]: row for row in csv.DictReader(stream)}
-    x_300 = np.arange(len(DRIVERS))
-    values_300 = [float(rows_300[driver]["dataplane_cycles_per_packet"]) for driver in DRIVERS]
-    bars_300 = ax_300.bar(
-        x_300,
-        values_300,
-        color=[COLORS[driver] for driver in DRIVERS],
-        hatch=[None, None, "//"],
-        width=0.62,
-    )
-    for bar, value in zip(bars_300, values_300):
-        ax_300.text(
-            bar.get_x() + bar.get_width() / 2,
-            value * 1.08,
-            f"{value:.0f}",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
-    ax_300.set_xticks(x_300, ["RDMA-DV", "DPDK", "AF_XDP"])
-    ax_300.tick_params(axis="x", rotation=10)
-    ax_300.grid(axis="y", which="both", alpha=0.25)
-    ax_300.set_axisbelow(True)
-    ax_300.set_title("CX6, 300-byte packets", fontweight="bold")
     handles, labels = ax.get_legend_handles_labels()
     fig.legend(
         handles,
@@ -409,14 +375,7 @@ def cpu_chart(rows):
         fontsize=14,
         fontweight="bold",
     )
-    fig.text(
-        0.5,
-        0.005,
-        "Each bar uses that datapath's qualified maximum; CX6 300-byte RDMA-DV and DPDK are source-limited",
-        ha="center",
-        fontsize=9,
-    )
-    fig.tight_layout(rect=(0.04, 0.04, 1, 0.84))
+    fig.tight_layout(rect=(0.04, 0, 1, 0.84))
     save(fig, "cpu-budget")
 
 

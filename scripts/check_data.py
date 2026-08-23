@@ -139,7 +139,7 @@ def check_cx6_300b() -> None:
     assert by_driver["AF_XDP ZC"]["source_limited"] == "false"
 
     article = ARTICLE.read_text(encoding="utf-8")
-    assert "CX6 300-byte CPU control" in article
+    assert "300-byte" not in article
 
 
 def main() -> None:

@@ -64,11 +64,8 @@ count. The CX5 6W reversal is deliberately left visible: DPDK leads there by
 1.5%.
 
 The CPU view uses two workers. For AF_XDP the bars include all kernel execution
-on the colocated IRQ/NAPI CPUs. With Ethernet64, native needs 134--218 cycles
-per packet against 381--800 for AF_XDP. A separate CX6 control uses 300-byte
-packets, beyond the full-packet-inline threshold: RDMA-DV and DPDK both reach
-the source limit near 40 Mpps at 207 cycles per packet, while AF_XDP reaches
-13 Mpps at 626 cycles.
+on the colocated IRQ/NAPI CPUs. Native needs 134--218 cycles per packet against
+381--800 for AF_XDP.
 
 ![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/cpu-budget.png)
 
@@ -202,9 +199,7 @@ mean higher packet rate.
    lower bounds and zero-loss NDR are different results and stay labelled as
    such.
 
-The exact result CSV, the
-[`CX6 300-byte CPU control`](data/cx6-300b-cpu.csv), the
-[`CX6 inline causal A/B`](data/cx6-inline-causal.csv), the
+The exact result CSV, the [`CX6 inline causal A/B`](data/cx6-inline-causal.csv), the
 [`BF3 inline controls`](data/bf3-inline-controls.csv), placement ledger,
 methodology, tuning evidence, submitted kernel patch and figure sources are
 available in the companion repository.
