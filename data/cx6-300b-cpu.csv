@@ -1,4 +1,0 @@
-hardware,packet_bytes,driver,profile,workers,rx_queues,tx_queues,throughput_mpps,dataplane_cycles_per_packet,all_cpu_cycles_per_packet,runs,duration_s,source_limited,qualification
-ConnectX-6 Dx,300,RDMA-DV,primary,2,4,3,39.560445,206.684,207.340,3,20,true,one raw QP per VPP thread; main QP inactive; RXQ spread below 0.040%; zero physical errors and PAUSE
-ConnectX-6 Dx,300,DPDK mlx5,primary,2,2,3,39.588350,206.447,207.122,3,20,true,one private worker TXQ plus inactive main TXQ; RXQ spread below 0.053%; zero physical errors and PAUSE
-ConnectX-6 Dx,300,AF_XDP ZC,strict,2,2,3,13.005412,625.550,628.878,3,20,false,W RX and W+1 TX XSKs; IRQ and NAPI colocated on declared CPUs; native zero-copy; busy poll 50 prefer budget 16

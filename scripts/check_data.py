@@ -13,7 +13,6 @@ CONFIGURATIONS = ROOT / "data" / "configurations.csv"
 ARTICLE = ROOT / "ARTICLE.md"
 CX6_INLINE = ROOT / "data" / "cx6-inline-causal.csv"
 BF3_INLINE = ROOT / "data" / "bf3-inline-controls.csv"
-CX6_300B = ROOT / "data" / "cx6-300b-cpu.csv"
 FINAL_STATUSES = {"final", "provisional"}
 PENDING_STATUSES = {"pending_exact_stack", "pending_requalification", "not_measured"}
 MEASUREMENTS = {
@@ -114,34 +113,6 @@ def check_inline_controls() -> None:
     assert "adaptive prototype was tested and rejected" in article
 
 
-def check_cx6_300b() -> None:
-    """Guard the matched two-worker 300-byte CPU control."""
-
-    rows = read(CX6_300B)
-    assert len(rows) == 3, "unexpected CX6 300-byte row count"
-    by_driver = {row["driver"]: row for row in rows}
-    assert set(by_driver) == {"RDMA-DV", "DPDK mlx5", "AF_XDP ZC"}
-    expected = {
-        "RDMA-DV": (39.560445, 206.684),
-        "DPDK mlx5": (39.588350, 206.447),
-        "AF_XDP ZC": (13.005412, 625.550),
-    }
-    for driver, (throughput, cycles) in expected.items():
-        row = by_driver[driver]
-        assert row["packet_bytes"] == "300"
-        assert row["workers"] == "2"
-        assert row["runs"] == "3" and row["duration_s"] == "20"
-        assert abs(float(row["throughput_mpps"]) - throughput) < 0.000001
-        assert abs(float(row["dataplane_cycles_per_packet"]) - cycles) < 0.001
-        assert float(row["all_cpu_cycles_per_packet"]) >= cycles
-    assert by_driver["RDMA-DV"]["source_limited"] == "true"
-    assert by_driver["DPDK mlx5"]["source_limited"] == "true"
-    assert by_driver["AF_XDP ZC"]["source_limited"] == "false"
-
-    article = ARTICLE.read_text(encoding="utf-8")
-    assert "300-byte" not in article
-
-
 def main() -> None:
     results = read(RESULTS)
     configurations = read(CONFIGURATIONS)
@@ -217,10 +188,9 @@ def main() -> None:
 
     check_article_claims(result_by_key)
     check_inline_controls()
-    check_cx6_300b()
 
     print(
-        f"Data audit passed: {len(results)} matched true64 cells plus the CX6 300-byte control; final 3x20, "
+        f"Data audit passed: {len(results)} matched true64 cells; final 3x20, "
         "accounting, placement and article-claim guards valid; pending cells contain no "
         "measurements."
     )

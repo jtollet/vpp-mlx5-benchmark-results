@@ -12,26 +12,16 @@ from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 SELF = Path(__file__).resolve()
-SUBMITTED_PATCH = Path("patches/mlx5-af-xdp-partial-refill-double-release-fix.patch")
 MESSAGE_IDS = {
-    "20260819151320.64178-1-jtollet@cisco.com",
-    "20260820151558.11015-1-jtollet@cisco.com",
     "cover.1787347981.git.jtollet@cisco.com",
 }
 ALLOWED_PUBLIC_DOMAINS = {
     "creativecommons.org",
-    "doc.dpdk.org",
-    "docs.fd.io",
-    "docs.kernel.org",
     "gerrit.fd.io",
-    "git.kernel.org",
-    "github.com",
     "lore.kernel.org",
     "matplotlib.org",
-    "networking-docs.nvidia.com",
+    "medium.com",
     "purl.org",
-    "raw.githubusercontent.com",
-    "sashiko.dev",
     "www.w3.org",
 }
 PATTERNS = {
@@ -95,12 +85,11 @@ def main() -> int:
             if has_ipv6(line):
                 findings.append(f"{relative}:{lineno}: IPv6 address")
             for match in EMAIL.finditer(line):
-                exact_patch_metadata = relative == SUBMITTED_PATCH
                 exact_public_message_id = any(
                     match.group(0) in message_id and message_id in line
                     for message_id in MESSAGE_IDS
                 )
-                if not exact_patch_metadata and not exact_public_message_id:
+                if not exact_public_message_id:
                     findings.append(f"{relative}:{lineno}: email outside public patch metadata")
             for match in URL.finditer(line):
                 domain = (urlparse(match.group(0)).hostname or "").lower()

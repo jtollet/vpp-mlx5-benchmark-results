@@ -1,5 +1,7 @@
 # Three VPP datapaths for NVIDIA ConnectX and BlueField
 
+> Published by [FD.io/VPP on Medium](https://medium.com/fd-io-vpp/three-vpp-datapaths-for-nvidia-connectx-and-bluefield-309c0124019d).
+>
 > **Code provenance.** Some retained rows use disabled-by-default review code.
 > Exact revisions and the status of every affected result are published with
 > the dataset.
@@ -47,7 +49,7 @@ marks a source-limited lower bound. CPU cost is measured CPU cycles divided by
 successful physical TX packets. For AF_XDP this includes IRQ, NAPI, XDP and
 XSK work on the declared CPUs; no auxiliary packet-service CPU is used.
 
-![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/throughput-scaling.png)
+![True64 throughput across workers](charts/throughput-scaling.png)
 
 ## What the curves say
 
@@ -65,7 +67,7 @@ The CPU view uses two workers. For AF_XDP the bars include all kernel execution
 on the colocated IRQ/NAPI CPUs. Native needs 134--218 cycles per packet against
 381--800 for AF_XDP.
 
-![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/285433e/charts/cpu-budget.png)
+![All-in cycles per successful packet](charts/cpu-budget.png)
 
 Two limits matter when reading the throughput curve. CX4 reaches its measured
 43-Mpps traffic-generator ceiling at three poll-mode workers, so the RDMA-DV
@@ -105,7 +107,7 @@ packet-rate ceiling. Retaining the VPP buffer until completion or releasing it
 after the copy changes the result only slightly; that distinction is therefore
 kept in the data but omitted from the graph.
 
-![CX6 eMPW inline root cause](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/50ba36b/charts/cx6-inline-root-cause.png)
+![CX6 eMPW inline root cause](charts/cx6-inline-root-cause.png)
 
 The full L3 tests use one dedicated QP per worker, an inactive main QP and
 balanced RX placement. RDMA-DV reaches **61,
@@ -196,7 +198,7 @@ mean higher packet rate.
 
 The exact result CSV, the [`CX6 inline causal A/B`](data/cx6-inline-causal.csv), the
 [`BF3 inline controls`](data/bf3-inline-controls.csv), placement ledger,
-methodology, tuning evidence, submitted kernel patch and figure sources are
+methodology, public kernel review and figure sources are
 available in the companion repository.
 The exact tested VPP revisions are recorded in
 [`VPP_CHANGES.md`](VPP_CHANGES.md).

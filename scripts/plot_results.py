@@ -203,72 +203,6 @@ def throughput_chart(rows):
     save(fig, "throughput-scaling")
 
 
-def advantage_chart(rows):
-    fig, ax = plt.subplots(figsize=(11.5, 5.4))
-    group_x = np.arange(len(HARDWARE))
-    scales = [
-        ("1 worker", lambda _hardware: 1),
-        ("2 workers", lambda _hardware: 2),
-        ("scale-out (CX4 3W; others 4W)", lambda hardware: 3 if hardware == "ConnectX-4" else 4),
-    ]
-    width = 0.22
-    worker_colors = ["#174f46", "#16857b", "#6bb8ad"]
-
-    for index, ((scale_label, workers_for), color) in enumerate(zip(scales, worker_colors)):
-        values = []
-        for hardware in HARDWARE:
-            workers = workers_for(hardware)
-            if hardware == "ConnectX-4" and index == 2:
-                # Both 3W paths forward the offered source boundary, so their
-                # tiny observed delta is not a DUT performance comparison.
-                values.append(np.nan)
-                continue
-            rdma = find(rows, hardware, "RDMA-DV", workers)
-            dpdk = find(rows, hardware, "DPDK mlx5", workers)
-            if rdma and dpdk:
-                values.append(100.0 * (rdma["throughput_mpps"] / dpdk["throughput_mpps"] - 1.0))
-            else:
-                values.append(np.nan)
-        positions = group_x + (index - 1) * width
-        bars = ax.bar(positions, values, width, color=color, label=scale_label)
-        for hardware, bar, value in zip(HARDWARE, bars, values):
-            if np.isnan(value):
-                continue
-            offset = 0.8 if value >= 0 else -1.0
-            ax.text(
-                bar.get_x() + bar.get_width() / 2,
-                value + offset,
-                f"{value:+.1f}%",
-                ha="center",
-                va="bottom" if value >= 0 else "top",
-                fontsize=8,
-            )
-
-    ax.axhline(0, color="#333333", linewidth=1)
-    ax.text(
-        group_x[0] + width,
-        2.0,
-        "3W source-limited\n(no delta claim)",
-        ha="center",
-        va="bottom",
-        fontsize=8,
-        color=worker_colors[2],
-    )
-    ax.set_ylabel("RDMA-DV throughput advantage over DPDK")
-    ax.set_xticks(group_x, HARDWARE)
-    ax.set_ylim(-15, 44)
-    ax.grid(axis="y", alpha=0.25)
-    ax.set_axisbelow(True)
-    ax.legend(frameon=False, ncol=3, loc="upper center")
-    ax.set_title(
-        "Tuned RDMA-DV versus tuned DPDK at matched worker counts",
-        fontweight="bold",
-    )
-    fig.text(0.5, 0.005, "CX4 3W is omitted from the delta because both paths are source-limited", ha="center", fontsize=9)
-    fig.tight_layout(rect=(0, 0.03, 1, 1))
-    save(fig, "worker-scaling")
-
-
 def cx6_inline_chart():
     with CX6_INLINE_DATA.open(newline="", encoding="utf-8") as stream:
         rows = [
@@ -382,7 +316,6 @@ def cpu_chart(rows):
 def main():
     rows = retained(load_rows())
     throughput_chart(rows)
-    advantage_chart(rows)
     cpu_chart(rows)
     cx6_inline_chart()
 
