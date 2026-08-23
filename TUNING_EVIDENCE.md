@@ -7,9 +7,10 @@ source and DUT. Older PG `size 64` observations are 68-byte controls and never
 select a true64 winner.
 
 Queue fairness is `(max RXQ delta - min RXQ delta) / mean RXQ delta`; retained
-multi-queue cells must remain below 1%. Queue count, descriptor depth and
-offered load are screened independently per hardware and datapath. “Maximum”
-means maximum forwarding under pressure, not zero-loss NDR.
+multi-queue cells target less than 1%. CX6 AF_XDP 5W/6W explicitly disclose
+1.8%/2.4% finite-hash/RETA quantization instead of hiding it. Queue count,
+descriptor depth and offered load are screened independently per hardware and
+datapath. “Maximum” means maximum forwarding under pressure, not zero-loss NDR.
 
 ## ConnectX-4
 
@@ -26,7 +27,7 @@ select MPW, so the DPDK winner is classic SEND with inline.
 |---|---:|---:|---:|---|
 | RDMA-DV | 15.803 Mpps / 206.6 cpp | 28.983 / 225.3 | 42.166+ / 232.2 | q3; RXQ spread ≤0.159%; source-limited |
 | DPDK, classic SEND + inline | 16.349 / 199.6 | 30.141 / 216.7 | 42.213+ / 231.9 | q3; TXQ0 inactive; RXQ spread ≤0.593%; source-limited |
-| AF_XDP maximum | 6.139 / 1160.4 | 11.752 / 1210.9 | 17.066 / 1250.5 | q3; XSK spread ≤0.0054%; three extra IRQ CPUs |
+| AF_XDP ZC; kernel counted | 3.768 / 865.6 | 8.151 / 800.4 | 11.162 / 876.7 | q3; W+1 private XSKs; no auxiliary CPU |
 
 Each 3W winner is a three-window 3×20-second result with a restarted source.
 The final source means
@@ -48,10 +49,11 @@ update was performed during the benchmark.
 Historical four-worker poll-mode runs remain diagnostic artifacts only and do
 not feed the article table, public CSV or main charts. They also stopped at the
 source boundary (42.821/42.818 Mpps for RDMA-DV/DPDK), so adding a fourth
-worker did not establish either DUT ceiling. AF_XDP has a separate qualified
-three-worker maximum: three balanced XSKs reach 17.066 Mpps with three
-additional IRQ/NAPI cores. A four-XSK result remains outside the CX4 headline
-matrix so every path is plotted only at one, two and three workers.
+worker did not establish either DUT ceiling. The comparable AF_XDP series uses
+one RX queue per worker plus a private TX-only XSK for the main thread and
+reaches 11.162 Mpps at 3W. IRQ/NAPI stays on main+worker CPUs; the 1.165% RXQ
+spread is RETA/finite-flow quantization. A 4W result remains outside the CX4
+headline matrix so every path is plotted only at one, two and three workers.
 
 ## ConnectX-5
 
@@ -89,25 +91,22 @@ do not lift the CX5 4W plateau.
 
 ### AF_XDP zero-copy
 
-Every XSK independently proves native zero-copy. Strict rows colocate IRQ/NAPI
-and count the full worker CPU; maximum rows count separate kernel CPUs.
+Every XSK independently proves native zero-copy. The final topology has `W`
+RX queues and `W+1` private TX/XSK queues, with the extra queue and its IRQ on
+the main thread. IRQ/NAPI for each active RX queue is colocated on its worker;
+CPU-wide counters include that kernel work.
 
-| Layout | 1W | 2W | 4W | 4W rings |
-|---|---:|---:|---:|---|
-| strict | 4.992 | 9.485 | 9.698 Mpps | RX4096/TX1024 |
-| maximum | 6.416 | 12.437 | 14.021 Mpps | RX4096/TX1024; four IRQ CPUs |
+| Workers | Physical TX | Worker-CPU cpp | Main-CPU cpp | RXQ spread |
+|---:|---:|---:|---:|---:|
+| 1 | 5.434 Mpps | 566.8 | 66.0 | n/a |
+| 2 | 10.112 | 609.3 | 34.8 | ≤0.006% |
+| 4 | 13.846 | 890.6 | 25.1 | ≤0.009% |
 
-At 4W, q4 is balanced below 0.54% strict and 0.02% maximum; q8 is rejected.
-RX4096/TX1024 and RX512/TX4096 both help short screens. The combined
-RX4096/TX4096 configuration falls to 13.22/13.87/13.90 Mpps over 3×20 seconds.
-Buffers from 524k to 2M, coalescing 0/0 to 32 usec/512 frames and the legacy
-syscall lock do not yield a monotonic sustained gain. Deeper rings delay
-pressure; they do not raise service rate.
-
-The 4W maximum uses four workers plus four IRQ CPUs and costs about 1692
-all-in cycles per successful packet. Input/L3/TX vectors fall relative to 2W,
-while userspace plus kernel cost rises. This—not an inactive queue—explains
-the weak 2W→4W AF_XDP scaling.
+RX4096/TX1024 is retained. Buffers from 524k to 2M, coalescing screens and the
+legacy syscall lock did not yield a monotonic sustained gain. Socket busy
+polling was 1.18% slower in the corrected 4W short A/B and remains off. Deeper
+rings delay pressure; they do not raise service rate. The 2W→4W plateau is a
+service limit, not an inactive or unfair queue.
 
 ## ConnectX-6 Dx
 
@@ -186,16 +185,25 @@ but is not evidence that VPP needs more than one TXQ per worker.
 
 ### AF_XDP
 
-CX6 uses four active XSKs for the maximum rows and for strict 2W. Rings are
-8192/8192 with 1M VPP buffers. Every socket reports `zc:1`.
+CX6 retains RX/TX2048 with 1M VPP buffers and the same `W` RX / `W+1` private
+TX/XSK ownership used on CX4/CX5. Every socket reports `zc:1`; IRQ/NAPI is
+colocated and counted. The selected socket policy is 50 usec busy poll,
+prefer mode and budget 16, together with the separately applied 20-usec NAPI
+timeout and defer count 8.
 
-| Layout | 1W | 2W | Dataplane CPU budget at 2W |
-|---|---:|---:|---|
-| strict | 8.482 | 15.616 Mpps | two worker CPUs including colocated IRQ/NAPI |
-| maximum | 17.797 | 33.367 Mpps | two workers plus four IRQ/NAPI CPUs |
+| Workers | Physical TX | Worker-CPU cpp | RXQ spread |
+|---:|---:|---:|---:|
+| 1 | 10.598 Mpps | 382.3 | n/a |
+| 2 | 21.275 | 380.5 | ≤0.408% |
+| 4 | 40.905 | 396.1 | ≤0.326% |
+| 5 | 50.375 | 401.8 | ≤1.816% |
+| 6 | 60.578 | 401.0 | ≤2.401% |
 
-Physical/RSS input spread remains below 0.029%. Ring-full, allocation and TX
-shortage counters are disclosed because these are MRR points, not NDR.
+The 5W/6W spreads come from the finite hash population and RETA quantization.
+A device-filtered 4W trace observed NAPI, refill and TX-completion work only
+on worker CPUs 21--24; the asynchronous pool-destroy work item was absent.
+Ring-full, allocation and TX shortage counters are disclosed because these
+are MRR points, not NDR.
 
 ### Firmware policy
 

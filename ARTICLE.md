@@ -1,8 +1,8 @@
 # What RDMA-DV buys VPP on NVIDIA ConnectX and BlueField
 
-> **Engineering draft.** The ConnectX-6 root cause is reproduced and the
-> corrected one-to-six-worker series is qualified. Full-packet inline remains
-> a disabled-by-default benchmark prototype with an explicit on/off policy.
+> **Code provenance.** The ConnectX-6 one-to-six-worker series is qualified.
+> Full-packet inline remains a disabled-by-default review change with an
+> explicit on/off policy.
 
 *True 64-byte IPv4 forwarding shows a lean native fast path, why one eMPW
 representation changed CX6 from a 53-Mpps plateau to 124.6 Mpps, and the real CPU price of
@@ -49,27 +49,29 @@ prove source headroom, so `rx-miss`, RX discard or TX backpressure can advance.
 They are maximum forwarding rate (MRR), not zero-loss NDR. A `+` below marks a
 source-limited lower bound. CPU cost is aggregate dataplane cycles divided by
 successful physical TX packets. The separate VPP main core is disclosed in
-the CSV; AF_XDP maximum also includes every dedicated IRQ/NAPI CPU.
+the CSV. For AF_XDP, CPU-wide counters on the declared main and worker CPUs
+include colocated IRQ/NAPI and kernel XSK work; no auxiliary packet-service
+CPU is allowed in the retained matrix.
 
 ![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/throughput-scaling.png)
 
 ## The result matrix
 
-The compact table reports `Mpps / dataplane cycles per packet`. AF_XDP uses
-its maximum layout; `+N IRQ` records additional kernel dataplane CPUs. A dash
-means that topology was outside the retained final matrix, not zero throughput.
+The compact table reports `Mpps / dataplane cycles per packet`. Every AF_XDP
+row uses `W` RX queues and `W+1` private TX/XSK queues: one per worker and one
+for the main thread. IRQ/NAPI is colocated on those same declared CPUs.
 
 | Platform | Datapath | 1 worker | 2 workers | Scale-out point |
 |---|---|---:|---:|---:|
 | ConnectX-4 | RDMA-DV, legacy SEND | 15.8 / 207 | 29.0 / 225 | 3W: 42.2+ / 232 |
 |  | DPDK mlx5, classic SEND + inline | 16.3 / 200 | 30.1 / 217 | 3W: 42.2+ / 232 |
-|  | AF_XDP ZC maximum | 6.1 / 1,160 +1 IRQ | 11.8 / 1,211 +2 IRQ | 3W: 17.1 / 1,250 +3 IRQ |
+|  | AF_XDP ZC, all-in workers | 3.8 / 866 | 8.2 / 800 | 3W: 11.2 / 877 |
 | ConnectX-5 | RDMA-DV + eMPW | **24.3 / 127** | **45.4 / 136** | 4W: **60.6 / 203** |
 |  | DPDK mlx5 | 19.0 / 163 | 36.4 / 170 | 4W: 55.1 / 224 |
-|  | AF_XDP ZC maximum | 6.4 / 1,042 +1 IRQ | 12.4 / 1,071 +2 IRQ | 4W: 14.0 / 1,688 +4 IRQ |
+|  | AF_XDP ZC, all-in workers | 5.4 / 567 | 10.1 / 609 | 4W: 13.8 / 891 |
 | ConnectX-6 Dx | RDMA-DV + eMPW | **45.4 / 90** | **60.9 / 134** | 4W inline prototype: **109.0 / 150** |
 |  | DPDK mlx5, controlled inline | 34.8 / 117 | 59.3 / 138 | 4W: 101.8 / 160 |
-|  | AF_XDP ZC maximum | 17.8 / 758 +4 IRQ | 33.4 / 619 +4 IRQ | — |
+|  | AF_XDP ZC, all-in workers | 10.6 / 382 | 21.3 / 381 | 4W: 40.9 / 396 |
 | BlueField-3 | RDMA-DV + eMPW | **14.2 / 140** | **27.2 / 147** | 4W: **55.3 / 144** |
 |  | DPDK mlx5 | 10.3 / 195 | 21.0 / 190 | 4W: 42.2 / 189 |
 
@@ -81,9 +83,10 @@ not prove that either DUT path stops there. This source limit does **not**
 apply to the two-worker points: the generator offered about 42.8 Mpps while
 the CX4 physically retransmitted 28.98 Mpps with RDMA-DV and 30.14 Mpps with
 DPDK.
-The CX4 AF_XDP three-worker maximum reaches 17.07 Mpps with three separately
-counted IRQ/NAPI cores. Its three XSKs are balanced within 0.006%; unlike the
-poll-mode rows, it is DUT-limited rather than source-limited.
+The comparable CX4 AF_XDP series reaches 3.77, 8.15 and 11.16 Mpps with one,
+two and three workers. It uses no auxiliary IRQ core. The 3W input spread is
+1.165%, consistent with RETA and finite-flow quantization; the TX-only main
+queue receives no RSS traffic.
 AF_XDP was not measured on BF3 by study scope; this is not a capability claim.
 
 ## Why RDMA-DV is the compelling default
@@ -220,32 +223,45 @@ No adaptive result appears in this article or its CSV.
 
 AF_XDP avoids payload copies, but mlx5 IRQ/NAPI, XSK refill/completion rings
 and VPP still consume CPU. Counting only the VPP workers would make the result
-look much better than the machine-level cost.
+look much better than the machine-level cost. The retained comparison therefore
+counts CPU-wide cycles on exactly the VPP main and worker cores, with every
+mlx5 completion IRQ pinned to the thread that owns its queue. No auxiliary
+IRQ, NAPI or recycling core is added to AF_XDP's budget.
 
-The contrast is stark. CX6 RDMA-DV forwards 45.4 Mpps with one poll-mode
-worker plus the light main core. AF_XDP's maximum one-worker layout reaches
-17.8 Mpps while using that worker, the main core and **four separate IRQ/NAPI
-cores**. At two workers it reaches 33.4 Mpps with seven physical CPUs in the
-dataplane-plus-main budget. On CX5, four-worker RDMA-DV reaches 60.6 Mpps;
-AF_XDP reaches 14.0 Mpps with four workers plus four IRQ CPUs, and its all-in
-cost rises to roughly 1,692 cycles per successful packet.
+That stricter topology changes the headline. CX6 AF_XDP scales from 10.60 to
+21.27, 40.91, 50.38 and 60.58 Mpps at one, two, four, five and six workers.
+Its worker-CPU cost remains about 382--401 cycles per successful packet,
+including kernel execution on those CPUs. CX5 moves from 5.43 to 10.11 and
+then 13.85 Mpps at four workers; CX4 reaches 3.77, 8.15 and 11.16 Mpps at
+one, two and three workers. These are much more honest numbers than a layout
+which quietly adds one IRQ CPU per queue.
 
-Strict AF_XDP controls colocate IRQ/NAPI with workers and count the full CPU.
-They prove that the maximum rows are not an accounting trick, but they also
-show the service limit: CX5 strict throughput moves from 5.0 to 9.5 to only
-9.7 Mpps across one, two and four workers. Deeper XSK rings absorb short
-bursts; the long 3×20-second run does not sustain the apparent screen gain.
-CX4 maximum scales more cleanly from 6.1 to 11.8 to 17.1 Mpps at one, two and
-three workers, but it consumes the same number of additional IRQ/NAPI cores.
+The cost is hidden only if one reads VPP graph counters as whole-machine
+counters. The CX4 decomposition attributes roughly 682, 662 and 671 cycles
+per packet to kernel execution at one, two and three workers: 75--81% of the
+decomposed CPU budget even though every cycle is charged to a declared CPU.
+RDMA-DV and DPDK poll their queues directly from VPP threads and do not carry
+this second kernel datapath.
+
+A separate device-filtered 4W trace verifies the accounting boundary rather
+than assuming it from affinity alone. Every observed NAPI poll, cyclic RX
+refill, batched XSK allocation, TX completion poll and `xsk_tx_completed()`
+call ran on worker CPUs 21--24. Some work executed as `ksoftirqd` or a bound
+`kworker`, but never outside those same CPUs, so the CPU-wide counters include
+it. `xp_release_deferred()` remained absent: that asynchronous work item
+destroys a pool after its last reference disappears; it is not a per-packet
+descriptor recycler. The traced window is a placement proof only and is not
+used as a throughput point.
 
 Linux does offer ways to trade interrupts for polling. `SO_PREFER_BUSY_POLL`
 was added by commit
 [`7fd3253a7de6`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=7fd3253a7de6a317a0683f83739479fb880bffc8)
 for Linux 5.11 and works with NAPI defer and timeout controls documented in
 the [kernel NAPI guide](https://docs.kernel.org/networking/napi.html). The VPP
-AF_XDP plugin used for the headline matrix does not request
-`SO_PREFER_BUSY_POLL`, `SO_BUSY_POLL` or epoll `EPIOCSPARAMS`; those results
-therefore exercise the classic mlx5 IRQ/NAPI service path.
+AF_XDP candidate exposes `SO_BUSY_POLL`, `SO_PREFER_BUSY_POLL` and
+`SO_BUSY_POLL_BUDGET` as optional per-device settings. They remain off by
+default. The retained CX6 rows use 50 us, prefer mode and budget 16; CX4 and
+CX5 keep socket busy polling off because their measured A/Bs did not benefit.
 
 ### What socket busy polling changes
 
@@ -255,9 +271,11 @@ a bounded time instead of waiting for the next completion interrupt.
 `SO_BUSY_POLL_BUDGET` limits the work of one NAPI callback. It removes wakeup
 and interrupt overhead; it does **not** remove mlx5e, XDP, XSK or NAPI work.
 
-The cleanest CX6 control used four workers, four XSKs and identical offered
+An isolated CX6 control used four workers, four XSKs and identical offered
 load. IRQ/NAPI was colocated with the owning worker and the table counts all
-CPU cycles, including time spent in the kernel:
+CPU cycles, including time spent in the kernel. This diagnostic predates the
+private `W+1` main TX queue and is used only for the causal A/B, not as a
+headline throughput row:
 
 | 4W / 4Q control | Physical TX | All-in cycles / TX packet | Completion IRQs / 8 s |
 |---|---:|---:|---:|
@@ -273,6 +291,12 @@ netdevice-wide controls and are deliberately not hidden inside the VPP
 interface option. The socket-only VPP support is under review in
 [Gerrit 46539](https://gerrit.fd.io/r/c/vpp/+/46539).
 
+The result is not portable as a magic constant. With the corrected `W+1`
+topology, 50 us / prefer / budget 16 reduced CX4 3W throughput from 11.27 to
+8.38 Mpps (-25.7%) and was 1.18% slower in the CX5 4W short A/B. It is kept
+only for CX6. `gro_flush_timeout=20000 ns` and `napi_defer_hard_irqs=8` are
+per-netdevice controls applied outside VPP, not socket options.
+
 This is also why AF_XDP CPU accounting cannot stop at VPP's thread counters.
 With classic delivery, mlx5 NAPI may execute on additional IRQ CPUs; with
 socket busy polling, the VPP worker enters the kernel and performs that work
@@ -282,31 +306,39 @@ so their measured forwarding budget consists of the VPP main and worker
 threads, without separate kernel packet-service cores. Busy polling changes
 where and when AF_XDP's kernel cost is paid; it does not make that cost free.
 
-A later isolated 4W/4Q prototype control compared socket busy-poll budgets 64,
-128 and 256 with three 12-second windows each. Mean forwarding was 36.849,
-37.435 and 37.182 Mpps respectively. The 1.6% numerical lead of 128 over 64
-was smaller than run-to-run dispersion, while 256 was 0.7% below 128 and had
-slightly worse queue fairness. This does not justify tying the kernel budget
-to VPP's 256-packet frame size: the feature remains off by default, 64 is the
-omitted-budget value when explicitly enabled, and 128 is only a candidate for
-a longer revalidation.
+A separate budget sweep also showed why VPP's 256-packet frame size is not a
+sound default for the kernel NAPI budget. The optimum moved with load and
+platform; the qualified CX6 campaign retained 16, while omitting the explicit
+budget from the VPP option uses 64. The feature itself remains off by default.
 
 The newer
 [`c18d4b190a46`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=c18d4b190a46651726c9a952667c74d2deb33c28)
 threaded-busy-poll mode can leave interrupts unarmed and pin NAPI to a kernel
 thread, but it moves the work to a dedicated kernel CPU rather than making it
 free. Any future AF_XDP comparison must count that kthread just as explicitly
-as the IRQ/NAPI CPUs here.
+as any other packet-service CPU.
 
 These are maximum-under-pressure results, not NDR. `RX_FULL`, allocation
 shortages and `no free TX slots` identify where overload is absorbed. They do
-not mean the retained RSS mapping is unfair: physical/RSS input is balanced
-below 1%, every active socket reports native `zc:1`, and invalid descriptors,
-WQE errors, PAUSE and physical frame errors remain zero.
+not mean the retained RSS mapping is unfair: every active socket reports
+native `zc:1`, and invalid descriptors, WQE errors, PAUSE and physical frame
+errors remain zero. CX6 RXQ spread is below 0.5% through 4W; the 1.8% and 2.4%
+5W/6W values are the measured distribution of the finite hash population
+across a quantized RETA, not worker or IRQ migration.
+
+### A queue-boundary bug exposed by `W+1`
+
+The fair topology also exposed a small pre-existing VPP bug. AF_XDP sizes its
+RX and TX queue vectors to the greater configured count. The refill helper
+iterated over the whole RX vector, so with `W` RX and `W+1` TX queues it tried
+to poll the main thread's TX-only XSK and logged `Bad file descriptor`.
+[Gerrit 46547](https://gerrit.fd.io/r/c/vpp/+/46547) changes only the refill
+bound to `ad->rxq_num`. The corrected plugin was used for every new CX4, CX5
+and CX6 row; no retained hardware snapshot contains that error.
 
 ![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
 
-## The AF_XDP bug found by the benchmark
+## The mlx5 kernel ownership bugs found by the benchmark
 
 Heavy `RX_FULL` testing exposed a silent mlx5 cyclic-RQ ownership bug. After a
 failed XDP redirect, a partial batched refill could leave an old XSK buffer
@@ -393,7 +425,10 @@ methodology, tuning evidence, submitted kernel patch and figure sources are
 available in the companion repository.
 The frozen VPP tree includes the merged RX CQ doorbell fix and the reviewed
 changes tracked in [`VPP_CHANGES.md`](VPP_CHANGES.md); the native eMPW change
-remains review code in [Gerrit 46465](https://gerrit.fd.io/r/c/vpp/+/46465).
+remains review code in [Gerrit 46465](https://gerrit.fd.io/r/c/vpp/+/46465),
+with optional AF_XDP busy polling in
+[46539](https://gerrit.fd.io/r/c/vpp/+/46539) and the `W+1` refill fix in
+[46547](https://gerrit.fd.io/r/c/vpp/+/46547).
 
 ## Glossary
 

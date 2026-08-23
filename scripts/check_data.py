@@ -72,7 +72,7 @@ def check_article_matrix(
         matrix[(current_hardware, driver)] = columns[2:5]
 
     for (hardware, driver), cells in matrix.items():
-        profile = "maximum" if driver == "AF_XDP ZC" else "primary"
+        profile = "strict" if driver == "AF_XDP ZC" else "primary"
         scale_workers = 3 if hardware == "ConnectX-4" else 4
         for index, workers in enumerate((1, 2, scale_workers)):
             result = result_by_key.get((hardware, driver, profile, str(workers)))
@@ -175,6 +175,17 @@ def main() -> None:
 
         if hardware == "ConnectX-6 Dx" and driver == "DPDK mlx5":
             assert configuration["buffers"] == "262144", f"wrong CX6 DPDK pool: {cell}"
+
+        if driver == "AF_XDP ZC":
+            assert result_by_key[cell]["extra_irq_cpus"] == "0", (
+                f"AF_XDP uses an undeclared auxiliary CPU: {cell}"
+            )
+            tx_mapping = configuration["txq_qp_to_producer_worker_cpu"]
+            assert "main" in tx_mapping, f"missing AF_XDP main TX queue: {cell}"
+            for worker in range(int(workers)):
+                assert f"worker{worker}" in tx_mapping, (
+                    f"missing AF_XDP worker TX queue: {cell}"
+                )
 
     assert not any(
         result["hardware"] == "ConnectX-4" and result["workers"] == "4"

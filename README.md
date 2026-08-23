@@ -1,11 +1,11 @@
 # VPP on NVIDIA ConnectX and BlueField: anonymized benchmark data
 
-> **Status: engineering draft.** The ConnectX-6 root cause and corrected
-> one-to-six-worker series are qualified. The full-inline native code remains
-> a disabled-by-default benchmark prototype; the tested adaptive policy was
-> rejected and only explicit OFF/ON results are retained.
+> **Status: qualified review-code dataset.** The ConnectX-6 root cause and
+> one-to-six-worker series are qualified. Full-inline native code remains a
+> disabled-by-default review change; the tested adaptive policy was rejected
+> and only explicit OFF/ON results are retained.
 
-This repository accompanies the draft article **“What RDMA-DV buys VPP on
+This repository accompanies the article **“What RDMA-DV buys VPP on
 NVIDIA ConnectX and BlueField.”** It archives a tuned comparison
 of VPP native RDMA-DV, VPP/DPDK mlx5 and VPP/AF_XDP native zero-copy for true
 64-byte-Ethernet same-port IPv4 forwarding with one to six workers.
@@ -21,9 +21,9 @@ four-worker rows. ConnectX-6 DPDK is qualified from one through six workers
 with inline state controlled independently of TXQ count. ConnectX-6 native is
 qualified at one, two, four, five and six workers; full inline is selected from
 two workers upward, while the old two-to-six-worker pointer plateau is retained
-as a separate control profile. AF_XDP is complete at the retained
-worker counts on the three discrete ConnectX adapters and not measured on
-BlueField-3 by study scope.
+as a separate control profile. AF_XDP is qualified at 1/2/3 workers on CX4,
+1/2/4 on CX5 and 1/2/4/5/6 on CX6, and is not measured on BlueField-3 by
+study scope.
 
 AF_XDP measurements are complete for the cyclic-RQ fix carried unchanged into
 the submitted mlx5 `[PATCH net v3 0/2]` series. Applying them to an upstream
@@ -32,7 +32,7 @@ code-provenance caveat, not unfinished measurement.
 
 ## Contents
 
-- [`ARTICLE.md`](ARTICLE.md): Medium-ready article draft.
+- [`ARTICLE.md`](ARTICLE.md): publication-ready article.
 - [`METHODOLOGY.md`](METHODOLOGY.md): workload, qualification and CPU accounting.
 - [`TUNING_EVIDENCE.md`](TUNING_EVIDENCE.md): exact-stack parameter screens.
 - [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md): submitted AF_XDP fix and native eMPW status.
@@ -61,10 +61,10 @@ code-provenance caveat, not unfinished measurement.
 - Finals are normally means of three 20-second windows.
 - AF_XDP values are peak forwarding under offered overload, not formal
   zero-loss NDR; shortage and ring-pressure counters are retained.
-- AF_XDP `strict` keeps IRQ/NAPI inside the worker CPU budget and includes that
-  kernel work in CPU-wide counters.
-- AF_XDP `maximum` uses additional IRQ/NAPI CPUs; their count and cost are
-  explicit and must not be compared as one-/two-core scaling.
+- Retained AF_XDP comparisons keep IRQ/NAPI inside the declared worker CPU
+  budget and include that kernel work in CPU-wide counters.
+- AF_XDP runs with additional IRQ/NAPI CPUs are diagnostic ceilings only and
+  are excluded from result tables, scaling graphs and driver comparisons.
 - The required, lightly loaded VPP main core is recorded separately.
 - Two-worker cycles/instructions aggregate both workers before division by
   successful physical packets.

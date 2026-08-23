@@ -23,7 +23,7 @@ DRIVERS = ["RDMA-DV", "DPDK mlx5", "AF_XDP ZC"]
 LABELS = {
     "RDMA-DV": "RDMA-DV",
     "DPDK mlx5": "DPDK mlx5",
-    "AF_XDP ZC": "AF_XDP maximum (IRQ CPUs counted)",
+    "AF_XDP ZC": "AF_XDP ZC (kernel work counted)",
 }
 COLORS = {
     "RDMA-DV": "#16857b",
@@ -54,7 +54,7 @@ def retained(rows):
 
 
 def profile_for(driver: str) -> str:
-    return "maximum" if driver == "AF_XDP ZC" else "primary"
+    return "strict" if driver == "AF_XDP ZC" else "primary"
 
 
 def series(rows, hardware: str, driver: str):
@@ -185,7 +185,7 @@ def throughput_chart(rows):
     fig.text(
         0.5,
         -0.01,
-        "+ source-limited lower bound (CX4 3W poll-mode); AF_XDP maximum counts one extra IRQ/NAPI CPU per queue\n"
+        "+ source-limited lower bound (CX4 3W poll-mode); AF_XDP IRQ/NAPI is colocated on declared VPP CPUs\n"
         "CX6 RDMA-DV uses pointer segments at 1W and the disabled-by-default full-inline prototype from 2W upward",
         ha="center",
         fontsize=9,
@@ -364,7 +364,7 @@ def cpu_chart(rows):
         frameon=False,
     )
     fig.suptitle(
-        "All dataplane CPUs counted — AF_XDP maximum includes dedicated IRQ/NAPI CPUs",
+        "All dataplane CPUs counted — AF_XDP includes colocated IRQ/NAPI kernel work",
         y=0.99,
         fontsize=14,
         fontweight="bold",

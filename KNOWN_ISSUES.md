@@ -1,5 +1,19 @@
 # Known issues and review code
 
+## VPP AF_XDP `W+1` input-refill bound
+
+Fair queue ownership requires one private TX/XSK per worker plus one private
+TX-only XSK for the VPP main thread. VPP sizes both queue vectors to the larger
+of the RX and TX counts, but `af_xdp_device_input_refill()` iterated over the
+complete RX vector. With `W` RX and `W+1` TX queues it therefore attempted to
+poll the main thread's TX-only XSK and reported `Bad file descriptor`.
+
+[VPP Gerrit 46547](https://gerrit.fd.io/r/c/vpp/+/46547) changes the loop bound
+to `ad->rxq_num` (three inserted and three deleted lines). The exact PS1 code
+was built and used for the final CX4, CX5 and CX6 AF_XDP campaigns. Every
+retained hardware snapshot has the expected `W+1` native zero-copy sockets and
+contains no RX-poll error.
+
 ## AF_XDP legacy cyclic-RQ partial refill
 
 Sustained mlx5 AF_XDP zero-copy overload reproduced a double publication of

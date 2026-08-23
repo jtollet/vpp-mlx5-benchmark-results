@@ -64,8 +64,8 @@ retained cell must archive and publish, in anonymized form:
   the resulting number of queues polled by each worker;
 - every transmit resource mapped through `TXQ or QP -> producer VPP thread ->
   worker/main -> CPU`, plus whether the resource is dedicated or shared;
-- for AF_XDP, the XSK corresponding to each RX queue and the effective
-  IRQ/NAPI CPU for both strict and maximum profiles;
+- for AF_XDP, the XSK corresponding to each RX queue and proof that its
+  effective IRQ/NAPI CPU is the owning VPP worker CPU;
 - per-queue and per-worker packet deltas used to quantify balance.
 
 The evidence set includes `show threads`, `show rx-placement` and the driver's
@@ -105,12 +105,10 @@ the true-Ethernet64 result matrix or select a winner without re-screening.
 
 PAUSE and PFC are disabled during retained windows, and physical PAUSE deltas
 must remain zero. Physical/driver errors, RX discards, XSK ring-full events and
-TX-slot pressure are retained in the qualification. AF_XDP `maximum` values
-are peak forwarding points under offered overload, not formal zero-loss NDR,
-and IRQ/NAPI may use separately counted CPUs. `strict` keeps that work inside
-the worker CPU budget. The CX4 strict rows are deliberately clean controls at
-one common source rate, not maximum-throughput or scaling claims; the CX5
-strict rows were swept around their own knees.
+TX-slot pressure are retained in the qualification. Every retained AF_XDP
+comparison keeps IRQ/NAPI work inside the declared worker CPU budget. Runs
+using separate IRQ/NAPI CPUs are diagnostic throughput ceilings only: they are
+excluded from the result matrix, scaling graphs and cross-driver comparisons.
 
 ### Receive-loss counter domains
 
@@ -144,12 +142,22 @@ from successful physical TX.
 
 The CSV distinguishes three scopes:
 
-- `dataplane_*`: VPP worker CPUs for RDMA-DV/DPDK; for strict AF_XDP these are
-  CPU-wide counters which already include colocated IRQ/NAPI kernel work;
-- AF_XDP maximum adds explicitly counted dedicated IRQ/NAPI CPUs to the
-  dataplane scope and records their count in `extra_irq_cpus`;
+- `dataplane_*`: CPU-wide counters for the declared VPP worker CPUs; for
+  AF_XDP they include all colocated IRQ/NAPI kernel work;
 - `main_*`: the separate VPP main core;
 - `system_*`: dataplane plus main where the source retained all components.
+
+Retained rows always have `extra_irq_cpus=0`. The separately pinned main
+thread is common to all compared drivers and is disclosed independently; no
+other CPU may service the retained dataplane. IRQ-affinity and per-CPU
+softirq deltas are checked so that an AF_XDP run which migrates work outside
+the declared worker set is rejected.
+
+The final CX6 boundary was also checked with device-filtered tracepoints and
+kprobes for NAPI, cyclic RX refill, XSK batch allocation, TX completion and
+`xsk_tx_completed()`. All packet-path events stayed on the declared worker
+CPUs. The deferred pool-release work item was absent during the measurement;
+it is a socket-teardown path rather than per-packet descriptor recycling.
 
 For two workers, cycles or instructions per packet is the sum of both worker
 counters divided by successful physical TX packets, not one worker's value.
@@ -199,7 +207,8 @@ campaign reached 42.634 Mpps; the final source means were 42.205 Mpps for
 RDMA-DV and 42.214 Mpps for DPDK. This 42.2--42.6-Mpps provenance is why the
 CX4 3W poll-mode values are marked as lower bounds; no firmware update was
 attempted as part of the measurement. CX4 AF_XDP is retained through three
-workers; its 3W maximum uses three additional IRQ/NAPI cores.
+workers with IRQ/NAPI colocated on those workers and a private TX-only XSK on
+the main thread; it uses no additional packet-service core.
 
 AF_XDP is forced with `XDP_ZEROCOPY`, and the kernel
 `XDP_OPTIONS_ZEROCOPY` flag is checked independently on every socket. The

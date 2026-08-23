@@ -290,7 +290,7 @@ def render_result_table(rows: list[dict[str, str]]) -> str:
     paths = (
         ("RDMA-DV", "primary"),
         ("DPDK mlx5", "primary"),
-        ("AF_XDP ZC", "maximum"),
+        ("AF_XDP ZC", "strict"),
     )
     lines = [
         "| Hardware | Path | 1 worker: Mpps / dataplane cycles-pkt / main cycles-pkt | 2 workers: Mpps / dataplane cycles-pkt / main cycles-pkt | 1→2 |",
@@ -301,8 +301,6 @@ def render_result_table(rows: list[dict[str, str]]) -> str:
         for driver, profile in paths:
             if hw == "BlueField-3" and driver == "AF_XDP ZC":
                 continue
-            if driver == "AF_XDP ZC" and (hw, driver, profile, "1") not in by_key:
-                profile = "strict"
             one = by_key[(hw, driver, profile, "1")]
             two = by_key[(hw, driver, profile, "2")]
             label = driver
@@ -310,7 +308,7 @@ def render_result_table(rows: list[dict[str, str]]) -> str:
                 label += ", legacy SEND" if hw == "ConnectX-4" else " + eMPW"
             elif driver == "AF_XDP ZC":
                 if one["status"] == "final" and two["status"] == "final":
-                    label += " maximum, submitted fix"
+                    label += ", kernel work counted"
             scale = "—"
             if one["throughput_mpps"] and two["throughput_mpps"]:
                 scale = f"{float(two['throughput_mpps']) / float(one['throughput_mpps']):.1f}×"
