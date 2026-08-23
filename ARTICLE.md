@@ -1,11 +1,12 @@
 # What RDMA-DV buys VPP on NVIDIA ConnectX and BlueField
 
-> **Code provenance.** The ConnectX-6 one-to-six-worker series is qualified.
+> **Code provenance.** The ConnectX-6 1/2/4/5/6-worker series is qualified.
 > Full-packet inline remains a disabled-by-default review change with an
-> explicit on/off policy.
+> explicit on/off policy. The CX4/CX5 RXD128 rows use a separate setup-time
+> validation change and remain provisional until review.
 
 *True 64-byte IPv4 forwarding shows a lean native fast path, why one eMPW
-representation changed CX6 from a 53-Mpps plateau to 124.6 Mpps, and the real CPU price of
+representation changed CX6 from a 53-Mpps plateau to 137.4 Mpps, and the real CPU price of
 AF_XDP zero-copy.*
 
 There are three credible ways to connect VPP to an NVIDIA mlx5 device. The
@@ -14,20 +15,19 @@ plugin uses the mlx5 PMD, and the AF_XDP plugin uses Linux zero-copy sockets.
 They all avoid a conventional kernel socket datapath, but they do not perform
 the same work.
 
-The short version is deliberately direct: **RDMA-DV is the most CPU-efficient
-VPP path on ConnectX-5 and BlueField-3, the fastest single-worker path on CX5,
-CX6 and BF3, and—once both stacks use complete-packet eMPW inline—the fastest
-qualified path at every retained CX6 worker count.** On CX5, native forwarding beats tuned
-DPDK by 28%, 25% and 10% with one, two and four workers. On BF3 it leads by
-39%, 29% and 31%. On CX6 the tuned native series reaches 60.9, 109.0, 124.6
-and 122.9 Mpps at two, four, five and six workers, ahead of matched DPDK by
-2.7%, 7.1%, 8.4% and 4.8%.
+The clearest result is the native-versus-kernel comparison: **RDMA-DV is faster
+than AF_XDP at every matched worker count on every measured adapter.** It
+forwards 2.27 to 4.57 times as many packets, while AF_XDP consumes 2.25 to
+4.53 times as many dataplane-CPU cycles per successful packet. Those cycles
+are not estimated: IRQ, NAPI, XDP and XSK work is counted on the same declared
+CPUs as VPP.
 
-The counterexamples keep that conclusion honest. DPDK is 3.5--4.0% faster on
-CX4, which lacks eMPW, and forcing inline is harmful on BF3 and on the CX6
-single-worker screen. The useful result is not “inline everything.” It is that
-DV provides an exceptionally lean datapath, while the transmit representation
-must follow actual pressure and hardware behavior.
+DPDK is the useful second control because it also polls the NIC from VPP. On
+the eMPW-capable adapters, RDMA-DV leads tuned DPDK in 14 of 15 paired cells;
+the sole exception is CX5 at six workers, by 1.5%. CX4, which lacks eMPW, is
+effectively a draw. The conclusion is therefore not that every inline mode is
+fast. It is that the native DV path removes a substantial software layer, and
+that its transmit representation must still match the hardware.
 
 ## What was measured
 
@@ -41,8 +41,11 @@ NIC counters confirm that every retained result uses 64-byte Ethernet frames.
 Throughput is the DUT's successful physical TX delta. It is not VPP's TX
 attempt counter. Finals are three independent 20-second windows. Main and
 worker threads use distinct physical cores; SMT siblings are excluded. RXQ
-and TXQ/QP ownership is captured for every cell, and multi-queue results must
-remain within 1% balance.
+and TXQ/QP ownership is captured for every cell. Aggregate load per worker
+targets a spread below 1%. A larger cell is retained only when the measured
+spread matches the smallest possible finite-flow/RETA quantization step; that
+floor is then published explicitly. Individual RXQ spread is disclosed
+separately when a worker polls several queues.
 
 The word *maximum* matters. Several points deliberately overload the DUT to
 prove source headroom, so `rx-miss`, RX discard or TX backpressure can advance.
@@ -55,73 +58,52 @@ CPU is allowed in the retained matrix.
 
 ![True64 throughput across workers](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/throughput-scaling.png)
 
-## The result matrix
+## What the curves say
 
-The compact table reports `Mpps / dataplane cycles per packet`. Every AF_XDP
-row uses `W` RX queues and `W+1` private TX/XSK queues: one per worker and one
-for the main thread. IRQ/NAPI is colocated on those same declared CPUs.
-
-| Platform | Datapath | 1 worker | 2 workers | Scale-out point |
-|---|---|---:|---:|---:|
-| ConnectX-4 | RDMA-DV, legacy SEND | 15.8 / 207 | 29.0 / 225 | 3W: 42.2+ / 232 |
-|  | DPDK mlx5, classic SEND + inline | 16.3 / 200 | 30.1 / 217 | 3W: 42.2+ / 232 |
-|  | AF_XDP ZC, all-in workers | 3.8 / 866 | 8.2 / 800 | 3W: 11.2 / 877 |
-| ConnectX-5 | RDMA-DV + eMPW | **24.3 / 127** | **45.4 / 136** | 4W: **60.6 / 203** |
-|  | DPDK mlx5 | 19.0 / 163 | 36.4 / 170 | 4W: 55.1 / 224 |
-|  | AF_XDP ZC, all-in workers | 5.4 / 567 | 10.1 / 609 | 4W: 13.8 / 891 |
-| ConnectX-6 Dx | RDMA-DV + eMPW | **45.4 / 90** | **60.9 / 134** | 4W inline prototype: **109.0 / 150** |
-|  | DPDK mlx5, controlled inline | 34.8 / 117 | 59.3 / 138 | 4W: 101.8 / 160 |
-|  | AF_XDP ZC, all-in workers | 10.6 / 382 | 21.3 / 381 | 4W: 40.9 / 396 |
-| BlueField-3 | RDMA-DV + eMPW | **14.2 / 140** | **27.2 / 147** | 4W: **55.3 / 144** |
-|  | DPDK mlx5 | 10.3 / 195 | 21.0 / 190 | 4W: 42.2 / 189 |
-
-CX4 reaches the traffic source at three workers. The measured true64
-traffic-generator ceiling was 42.63 Mpps, while the three final windows
-offered a mean 42.21 Mpps and the DUT retransmitted 42.17 Mpps with RDMA-DV
-and 42.21 Mpps with DPDK. Both 3W values are therefore lower bounds; they do
-not prove that either DUT path stops there. This source limit does **not**
-apply to the two-worker points: the generator offered about 42.8 Mpps while
-the CX4 physically retransmitted 28.98 Mpps with RDMA-DV and 30.14 Mpps with
-DPDK.
-The comparable CX4 AF_XDP series reaches 3.77, 8.15 and 11.16 Mpps with one,
-two and three workers. It uses no auxiliary IRQ core. The 3W input spread is
-1.165%, consistent with RETA and finite-flow quantization; the TX-only main
-queue receives no RSS traffic.
+The throughput figure carries every retained value, so it is the result
+matrix. Across matched cells, RDMA-DV is 3.40--4.36 times faster than AF_XDP
+on CX4, 4.40--4.57 times faster on CX5, and 2.27--4.28 times faster on CX6.
 AF_XDP was not measured on BF3 by study scope; this is not a capability claim.
+
+DPDK remains fully visible in the same figure. BF3 is the strongest native-
+versus-DPDK result: RDMA-DV leads by 38.5%, 29.4%, 31.0%, 16.4% and 22.8% at
+one, two, four, five and six workers. CX6 also favors native at every retained
+count. The CX5 6W reversal is deliberately left visible: DPDK leads there by
+1.5%.
+
+The CPU view tells the same story from the other side. It shows aggregate
+worker-CPU cycles per successfully transmitted packet; for AF_XDP those bars
+include all kernel execution on the colocated IRQ/NAPI CPUs. The native driver
+needs roughly 90--218 cycles per packet in the illustrated 1W/2W cells,
+against 381--866 for AF_XDP. DPDK remains much closer to native because both
+paths poll device queues directly from VPP.
+
+![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
+
+Two limits matter when reading the throughput curve. CX4 reaches its measured
+42.63-Mpps traffic-generator ceiling at three poll-mode workers, so those two
+points are lower bounds. CX6 RDMA-DV at six workers is likewise source-limited
+at 137.4 Mpps. Neither boundary applies to the AF_XDP points.
 
 ## Why RDMA-DV is the compelling default
 
 The native plugin receives directly into VPP buffers and consumes mlx5 CQEs
-without crossing the ethdev/`rte_mbuf` boundary. On adapters that advertise
-enhanced Multi-Packet WQE (eMPW), it groups compatible packets into TX WQEs
-and falls back safely to ordinary SEND when required. CX5, CX6 and BF3 use
-eMPW; CX4 lacks the capability and therefore exercises legacy SEND.
-The DPDK PMD likewise selected its No-MPW classic SEND path with inline on
-every retained CX4 final; the archived burst function is
-`mlx5_tx_burst_sci`. The requested `txq_inline_mpw=1` devarg did not make the
-runtime path MPW.
+from the VPP worker. It avoids both the kernel XDP/XSK machinery used by
+AF_XDP and the ethdev/`rte_mbuf` boundary used by DPDK. On CX5, CX6 and BF3 it
+also groups compatible packets into enhanced Multi-Packet WQEs (eMPW); CX4 is
+the legacy-SEND control.
 
-The payoff is visible in both dimensions that matter. On CX5, RDMA-DV's
-throughput advantage over DPDK is 28.1%, 24.8% and 10.1% from one to four
-workers, while worker cycles per packet are lower by 21.9%, 19.9% and 9.2%.
-On BF3, native forwards 38.5%, 29.4% and 31.0% more packets with 27.8%, 22.7%
-and 23.7% fewer worker cycles at one, two and four workers. On CX6, native is
-ahead at every retained worker count; at one worker it delivers 30.4% more
-packets and uses about 23% fewer worker cycles.
+BF3 makes the architectural benefit particularly clear. Native pointer eMPW
+is faster than the tuned DPDK PMD at every retained worker count even though
+forced full-packet inline hurts native BF3. The win is therefore not created
+by choosing a favorable copy policy: the shorter DV path itself matters.
 
-CX4 is the useful counterexample. Without eMPW, tuned DPDK is 3.5% and 4.0%
-faster at one and two workers. At three workers the source limit hides any DUT
-difference: both paths forward essentially the full offered load at about 232
-worker cycles per successful packet. CX6 is the more revealing case: its
-native pointer control reaches only 52.8 Mpps at two workers, below DPDK's
-59.3. Once both drivers use the same inline representation, native reaches
-60.9 Mpps at two workers and leads 109.0 to 101.8 at four, while costing 150
-rather than 160 worker cycles per packet at four. The defensible conclusion is
-therefore not “DV always wins.” It is stronger and more useful:
-**when the hardware exposes the batching capability, DV gives VPP an
-unusually efficient fast path without needing an ethdev abstraction layer.**
-
-![RDMA-DV advantage over DPDK](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/worker-scaling.png)
+CX4 keeps the comparison honest. Without eMPW, RDMA-DV and DPDK are within
+0.6% at one and two workers and both hit the source at three. CX6 is the
+opposite control: once both paths use complete-packet eMPW inline, native
+overtakes DPDK and continues scaling. **When the hardware exposes the batching
+capability, DV gives VPP an unusually efficient fast path without requiring
+an ethdev abstraction layer.**
 
 ## ConnectX-6: the 53-Mpps mystery was in the WQE
 
@@ -161,43 +143,38 @@ the bytes are already in the posted WQE.
 The full L3 finals keep one dedicated QP per worker and an inactive main QP.
 At 2W, the measured warm-up pairs one queue from each RSS rate class on each
 worker: q0/q2 on W0 and q1/q3 on W1. The 4W map is q0/q4, q1/q5, q2/q6 and
-q3/q7. The 5W winner uses four queues per worker (q0/q5/q10/q15 on W0 and the
-same cyclic pattern through W4); 6W returns to q12, q0/q6 through q5/q11.
-The small 5W-to-6W dip is a qualification trade-off, not an unexplained
-dispatch collapse: faster q18/q24 six-worker screens reached about 138.5 Mpps
-but exceeded the 1% individual-RXQ fairness limit and were excluded.
+q3/q7. The new 5W final uses q15, three queues per worker: q0/q5/q10 on W0
+and the same cyclic pattern through W4. The 6W final uses q24, four queues per
+worker: q0/q6/q12/q18 on W0 through q5/q11/q17/q23 on W5.
 
-The qualified means are **60.893, 109.049, 124.564 and 122.867 Mpps** at two,
-four, five and six workers. Maximum individual RXQ spread is 0.136%, 0.083%,
-0.992% and 0.461%, respectively. The 5W and 6W cells request one CQE every 32
-doorbells and use an 8192-entry ownership ring; 2W and 4W retain the default
-cadence. These are MRR results, not NDR. The 4W priority-buffer ingress discard
+That requalification corrects the apparent 5W-to-6W regression. The earlier
+6W/q12 row optimized the spread of individual queues, although worker load is
+the relevant scaling boundary when each worker polls several queues. In the
+new 3x20-second finals, aggregate worker spread stays below 0.403% at 5W and
+0.866% at 6W. Individual RXQ spread is still disclosed: 1.580% and 2.520%,
+caused by the finite flowgen distribution among queues owned by the same
+worker. Every queue is active.
+
+The qualified means are **61.027, 109.049, 126.976 and 137.354 Mpps** at two,
+four, five and six workers. The 2W/5W/6W cells use the datapath from
+[Gerrit 46540 PS2](https://gerrit.fd.io/r/c/vpp/+/46540),
+`tx-empw-inline on max-size 60`, immediate release and the default
+completion cadence; they do not carry the prototype CQE/ring controls. Six workers are
+source-limited: the source mean is 138.335 Mpps, so 137.354 Mpps is a lower
+bound on DUT capacity. These are MRR results, not NDR. The 4W priority-buffer ingress discard
 rate averages 25.77 Mpps and TX no-free 0.45 Mpps; the other pressure domains
 remain identified in the CSV. A separate 4W clean control follows the source
 at 91.282 Mpps with both counters at zero.
 
-### Why the earlier DPDK queue explanation was wrong
+### Keeping the DPDK comparison honest
 
-The old DPDK A/B appeared to show that two TXQs per worker beat one. It had a
-hidden variable. On non-BlueField mlx5, the PMD's default complete-packet
-inline threshold is eight total TX queues. VPP provisions an additional main
-TXQ, so four workers with one TXQ each create five total queues and stay below
-the threshold; two per worker create nine and cross it. Queue count had
-silently selected pointer versus inline WQEs.
-
-The corrected A/B forces inline independently of queue count. With inline
-off, one versus two TXQs per worker gives 68.440 versus 68.777 Mpps TX-only;
-with inline on it gives 125.006 versus 112.738. In L3 q8, one versus two gives
-109.108 versus 108.288 Mpps in the matched screen. More TXQs are neutral or
-harmful once representation is held constant.
-
-The corrected DPDK finals therefore use one exclusive TXQ per worker, an idle
-main TXQ and explicit inline from two workers upward: 34.800, 59.308, 101.838,
-114.891 and 117.260 Mpps at one, two, four, five and six workers. Native is
-ahead at all five points: 45.370, 60.893, 109.049, 124.564 and 122.867 Mpps.
-Testpmd's
-111.3-Mpps four-core control remains useful evidence of hardware headroom,
-but it no longer supports a “more queues are faster” conclusion.
+The original DPDK queue A/B had a hidden variable: on non-BlueField mlx5, the
+PMD can select complete-packet inline from the total TXQ count. Increasing the
+queue count had silently changed both queue topology and WQE representation.
+The corrected campaign controls inline explicitly and keeps one exclusive TXQ
+per worker plus an inactive main TXQ. Once representation is fixed, extra
+TXQs are neutral or harmful. Testpmd's 111.3-Mpps four-core control remains a
+hardware-headroom check, not a publication result.
 
 ### Fixed inline is evidence, not the production policy
 
@@ -208,10 +185,8 @@ plus immediate free. Those BF3 numbers are three 12-second controls at a fixed
 50-Mpps offer, not replacements for the headline 3×20 final.
 
 The production question is therefore when to select the representation. A
-per-TXQ adaptive prototype measured posted-minus-completed packets independently
-on every queue, but the 10/128 hysteresis crossed roughly 250,000 times per TXQ
-in six seconds on CX6 and reduced 4W/q4 forwarding to 49.2 Mpps. It is rejected.
-The retained interface is deliberately simpler and device-wide:
+per-TXQ adaptive prototype oscillated and severely regressed CX6, so it is
+rejected. The retained interface is deliberately simpler and device-wide:
 `tx-empw-inline off` or `tx-empw-inline on [max-size N]`. It defaults to OFF;
 ON defaults to 60 bytes, the VPP-buffer length of a physical Ethernet-64
 packet, and releases a buffer immediately after copying the complete packet
@@ -228,16 +203,12 @@ counts CPU-wide cycles on exactly the VPP main and worker cores, with every
 mlx5 completion IRQ pinned to the thread that owns its queue. No auxiliary
 IRQ, NAPI or recycling core is added to AF_XDP's budget.
 
-That stricter topology changes the headline. CX6 AF_XDP scales from 10.60 to
-21.27, 40.91, 50.38 and 60.58 Mpps at one, two, four, five and six workers.
-Its worker-CPU cost remains about 382--401 cycles per successful packet,
-including kernel execution on those CPUs. CX5 moves from 5.43 to 10.11 and
-then 13.85 Mpps at four workers; CX4 reaches 3.77, 8.15 and 11.16 Mpps at
-one, two and three workers. These are much more honest numbers than a layout
-which quietly adds one IRQ CPU per queue.
+That stricter topology is slower than RDMA-DV in every matched cell, as the
+throughput graph shows. It is also a fairer result than a layout which quietly
+adds one IRQ CPU per queue.
 
 The cost is hidden only if one reads VPP graph counters as whole-machine
-counters. The CX4 decomposition attributes roughly 682, 662 and 671 cycles
+counters. The CX4 decomposition attributes roughly 682, 662 and 654 cycles
 per packet to kernel execution at one, two and three workers: 75--81% of the
 decomposed CPU budget even though every cycle is charged to a declared CPU.
 RDMA-DV and DPDK poll their queues directly from VPP threads and do not carry
@@ -260,8 +231,9 @@ for Linux 5.11 and works with NAPI defer and timeout controls documented in
 the [kernel NAPI guide](https://docs.kernel.org/networking/napi.html). The VPP
 AF_XDP candidate exposes `SO_BUSY_POLL`, `SO_PREFER_BUSY_POLL` and
 `SO_BUSY_POLL_BUDGET` as optional per-device settings. They remain off by
-default. The retained CX6 rows use 50 us, prefer mode and budget 16; CX4 and
-CX5 keep socket busy polling off because their measured A/Bs did not benefit.
+default. The retained CX6 rows use 50 us, prefer mode and budget 16. CX5 keeps
+socket busy polling off; CX4 keeps it off at 1W/2W and uses it with the
+separately tuned 3W rings to reduce RX pressure.
 
 ### What socket busy polling changes
 
@@ -291,11 +263,15 @@ netdevice-wide controls and are deliberately not hidden inside the VPP
 interface option. The socket-only VPP support is under review in
 [Gerrit 46539](https://gerrit.fd.io/r/c/vpp/+/46539).
 
-The result is not portable as a magic constant. With the corrected `W+1`
-topology, 50 us / prefer / budget 16 reduced CX4 3W throughput from 11.27 to
-8.38 Mpps (-25.7%) and was 1.18% slower in the CX5 4W short A/B. It is kept
-only for CX6. `gro_flush_timeout=20000 ns` and `napi_defer_hard_irqs=8` are
-per-netdevice controls applied outside VPP, not socket options.
+The result is not portable as a magic constant. On CX5, post-fix 3×20 A/Bs
+make 50 us / prefer / budget 16 neutral to slightly negative, so it remains
+off. On CX4 the initial large-ring test showed a 25.7% regression, but the
+matched winner at XSK1024/kernel-RX512 gives 12.494 Mpps off and 12.524 on
+while the source itself differs by 0.24%; this is neutral, not a speedup. Busy
+poll is retained in the optimized CX4 3W final because it reduced RX pressure,
+not because a throughput gain was proven. `gro_flush_timeout=20000 ns` and
+`napi_defer_hard_irqs=8` are per-netdevice controls applied outside VPP, not
+socket options.
 
 This is also why AF_XDP CPU accounting cannot stop at VPP's thread counters.
 With classic delivery, mlx5 NAPI may execute on additional IRQ CPUs; with
@@ -335,8 +311,6 @@ to poll the main thread's TX-only XSK and logged `Bad file descriptor`.
 [Gerrit 46547](https://gerrit.fd.io/r/c/vpp/+/46547) changes only the refill
 bound to `ad->rxq_num`. The corrected plugin was used for every new CX4, CX5
 and CX6 row; no retained hardware snapshot contains that error.
-
-![All-in cycles per successful packet](https://raw.githubusercontent.com/jtollet/vpp-mlx5-benchmark-results/main/charts/cpu-budget.png)
 
 ## The mlx5 kernel ownership bugs found by the benchmark
 
@@ -379,12 +353,17 @@ provides the underlying ring and zero-copy model.
 
 ## What tuning did—and did not—change
 
-Queue count mattered more than raw ring size. CX5 4W retained q4 for all three
-paths; q8/q16 were slower or failed the 1% fairness threshold. Doubling native
-TXD reduced `no free` events but changed throughput only 0.22%. DPDK TXD1024
-reduced failures but gained only 0.16%. AF_XDP's one-sided deep rings helped
-short screens, while the deep/deep combination regressed over 20 seconds.
-Descriptors are buffering, not a substitute for service rate.
+Queue count and descriptor depth had to be tuned independently. The decisive
+CX5 change was removing a VPP setup-time restriction which tied the minimum
+RX ring to the 256-packet node-frame size. Hardware and the existing refill/
+poll code accept RXD128: it raises native 4W to 62.22 Mpps and 5W to 64.73.
+The change only widens interface validation; it adds no dataplane instruction.
+CX4 also moves to near parity with RXD128. Going lower is not automatically
+better: RXD64 collapses on both cards, and CX5 6W remains 1.5% below DPDK after
+RXD64, TXD128, q12 and TXD256--2048 controls. AF_XDP's one-sided deep rings
+helped short screens, while the deep/deep combination regressed over 20
+seconds. Descriptors affect cache working set and burst behavior as well as
+buffering, but do not replace service rate.
 
 CX6 firmware `BALANCED` versus `AGGRESSIVE` produced a real batching change
 but less than 0.5% throughput difference in the matched true64 4W A/B. An
@@ -401,15 +380,15 @@ never NDR.
 
 ## Takeaways
 
-1. **RDMA-DV is the strongest efficiency result.** On eMPW-capable CX5, CX6
-   and BF3 it delivers more work per core than the alternatives at low worker
-   counts, often by a wide margin.
+1. **RDMA-DV is the strongest efficiency result.** It leads 14 of 15 paired
+   eMPW-capable cells; the one exception is CX5 6W at -1.5% throughput.
 2. **WQE representation can overturn a stack comparison.** The apparent CX6
    TXQ-count gain was DPDK's inline threshold in disguise. At fixed inline
    state, one exclusive TXQ per worker wins or ties.
 3. **The CX6 scaling root cause is pointer-segment service, not dispatch.**
    Full-packet eMPW inline raises native 4W TX-only from 68.9 to 145.9 Mpps and
-   sustained L3 to 109.0 Mpps at 4W and 124.6 Mpps at 5W. The tested adaptive
+   sustained L3 to 109.0 Mpps at 4W, 127.0 Mpps at 5W and a source-limited
+   137.4 Mpps at 6W. The tested adaptive
    hysteresis oscillates and is rejected; the published cells use explicit ON/OFF.
 4. **AF_XDP's kernel work must be counted.** Zero-copy is valuable, but in this
    forwarding workload it costs far more all-in CPU and achieves less
@@ -426,18 +405,30 @@ available in the companion repository.
 The frozen VPP tree includes the merged RX CQ doorbell fix and the reviewed
 changes tracked in [`VPP_CHANGES.md`](VPP_CHANGES.md); the native eMPW change
 remains review code in [Gerrit 46465](https://gerrit.fd.io/r/c/vpp/+/46465),
-with optional AF_XDP busy polling in
+with full-packet inline in [46540](https://gerrit.fd.io/r/c/vpp/+/46540),
+optional AF_XDP busy polling in
 [46539](https://gerrit.fd.io/r/c/vpp/+/46539) and the `W+1` refill fix in
 [46547](https://gerrit.fd.io/r/c/vpp/+/46547).
 
 ## Glossary
 
-- **AF_XDP / XSK / ZC:** Linux XDP socket interface / socket / native zero-copy.
-- **CQ / CQE:** completion queue / completion entry.
-- **DPDK / PMD:** Data Plane Development Kit / poll-mode driver.
-- **eMPW / WQE:** enhanced multi-packet / ordinary work queue element.
-- **IBV / DV:** generic libibverbs / mlx5 Direct Verbs native paths.
+- **AF_XDP / XSK / ZC:** Linux XDP socket interface / one XDP socket / native
+  zero-copy mode.
+- **CQ / CQE:** hardware completion queue / one completion entry.
+- **DPDK / PMD:** Data Plane Development Kit / poll-mode device driver.
+- **eMPW / WQE:** enhanced multi-packet work-queue format / one NIC work-queue
+  element.
+- **IBV / DV / RDMA-DV:** generic libibverbs interface / mlx5 Direct Verbs /
+  VPP's native DV datapath.
+- **Inline:** packet bytes copied into the TX WQE instead of referenced through
+  a separate DMA address.
 - **IRQ / NAPI:** Linux interrupt and network-polling work counted for AF_XDP.
 - **L3 hairpin:** IPv4 forwarding back through the same physical DUT port.
-- **MRR / NDR:** maximum forwarding rate / zero-loss no-drop rate.
 - **Mpps:** millions of successful physical TX packets per second.
+- **MRR / NDR:** maximum forwarding rate under pressure / zero-loss no-drop
+  rate.
+- **QP / RQ / SQ:** queue pair / receive queue / send queue.
+- **RSS / RETA:** receive-side hash steering / its indirection table.
+- **RXD / TXD:** configured receive / transmit descriptor depth.
+- **`rx-miss`:** frame rejected before VPP because no RX descriptor was
+  available; not a CPU cache miss.

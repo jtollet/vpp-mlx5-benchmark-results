@@ -11,13 +11,17 @@ ConnectX-4, ConnectX-5, ConnectX-6 Dx and BlueField-3 through:
 
 AF_XDP is scoped to the discrete ConnectX adapters. It is not measured on
 BlueField-3, without implying that the interface is unsupported there.
-ConnectX-6 DPDK is qualified from one through six workers. Native RDMA-DV is
+CX4 poll-mode paths are qualified at one, two and three workers; the 3W rows
+are source-limited. CX5 and BF3 RDMA-DV/DPDK are qualified at one, two, four,
+five and six workers. CX5 AF_XDP is qualified at one, two, four and five.
+ConnectX-6 DPDK is qualified at one, two, four, five and six workers. Native RDMA-DV is
 qualified at one, two, four, five and six workers in the headline profile; the
 old two-to-six-worker pointer-data-segment plateau is retained separately as a
 control. Native uses an inactive main-thread QP and one active thread-local QP
 per worker. DPDK uses an inactive main-thread TXQ, one explicitly assigned TXQ
 per worker, controlled inline state and weighted-RETA balance. ConnectX-6
-AF_XDP is qualified at one and two workers in strict and maximum CPU layouts.
+AF_XDP is qualified at one, two, four, five and six workers in the strict
+all-in CPU layout.
 
 Only rows repeated on the frozen exact VPP tree may have numeric values in the
 public result matrix. Missing or withdrawn cells are never filled from an
@@ -48,8 +52,11 @@ BlueField-3 its embedded Arm cores. Mpps describes each complete platform.
   construction are unchanged across DUT paths.
 - Offered load is swept around each path's knee and retained above the measured
   DUT rate; it is not fixed to one common overload value.
-- Per-queue and per-worker deltas prove that all configured queues are active
-  and that traffic balance stays within the acceptance threshold.
+- Per-queue and per-worker deltas prove that all configured queues are active.
+  Aggregate load per worker is the primary fairness boundary when one worker
+  polls several RX queues; individual-queue spread is retained and disclosed
+  separately so finite source-flow quantization cannot be mistaken for worker
+  imbalance.
 
 ## Placement evidence per cell
 
@@ -95,8 +102,9 @@ interval used for CPU counters. VPP's software TX counter is not used because
 it may include unsuccessful attempts under overload.
 
 Final values are normally the mean of three independent 20-second windows.
-Short screens select queue count, rings, buffers, coalescing and offered load;
-they are never substituted for the final mean.
+`throughput_sd_mpps` is their population standard deviation. Short screens
+select queue count, rings, buffers, coalescing and offered load; they are never
+substituted for the final mean.
 
 Older exploratory campaigns used VPP PG `size 64`, meaning 64 bytes before
 FCS. Physical counters show 68.000 bytes per MAC frame. Those observations may
@@ -177,13 +185,21 @@ revisions listed in [`VPP_CHANGES.md`](VPP_CHANGES.md), including the native
 eMPW path and RX CQ doorbell byte-order fix. The build uses DPDK 26.03 and
 rdma-core 62.0.
 
-The CX6 two-worker-and-higher full-inline results add isolated prototype commit
-`10b04d4acc6a45cbc21d469d58f79bcd4b1cba07` on that exact base. It copies a
-complete compatible packet into the eMPW WQE and can free the VPP buffer
-immediately after the SQ copy. Both prototype controls default off. A per-TXQ
-adaptive follow-up measured posted-minus-completed backlog independently, but
-its hysteresis oscillated and regressed throughput; it was rejected and no
-adaptive mode is used for a retained result.
+The CX6 2W/5W/6W full-inline results use one local integration whose output
+path is byte-identical to Gerrit 46540 PS2 (plugin SHA-256
+`5aebb732f1e5ca5997bbf75f3ad67f4d5572dfa85796c0e38f366de264622249`).
+The 4W causal/final artifact uses the earlier isolated prototype implementing
+the same complete-packet copy and immediate buffer release. The feature
+defaults off. A per-TXQ adaptive follow-up measured posted-minus-completed
+backlog independently, but its hysteresis oscillated and regressed throughput;
+it was rejected and no adaptive mode is used for a retained result.
+
+The CX4 1W/2W and CX5 4W/5W/6W native descriptor requalifications add only an
+experimental setup-time change which accepts power-of-two RX rings from 128
+entries instead of tying the minimum to `VLIB_FRAME_SIZE` (256). Refill remains
+bounded by `min(VLIB_FRAME_SIZE, ring_space)` and CQ polling cannot return more
+entries than the CQ contains. RXD64 controls were rejected. The public rows
+remain provisional until that independent validation change is reviewed.
 
 ConnectX-4 does not advertise enhanced MPW and therefore exercises native
 legacy SEND. The retained ConnectX-5, ConnectX-6 Dx and BlueField-3 native

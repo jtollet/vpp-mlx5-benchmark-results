@@ -6,16 +6,18 @@ result matrix. Every retained frame is proven as 64.000 physical bytes at
 source and DUT. Older PG `size 64` observations are 68-byte controls and never
 select a true64 winner.
 
-Queue fairness is `(max RXQ delta - min RXQ delta) / mean RXQ delta`; retained
-multi-queue cells target less than 1%. CX6 AF_XDP 5W/6W explicitly disclose
-1.8%/2.4% finite-hash/RETA quantization instead of hiding it. Queue count,
+Queue fairness is reported both per RXQ and per worker aggregate. Retained
+multi-worker cells target less than 1% aggregate worker spread; individual
+RXQ spread is also disclosed and targets less than 1% when the finite source
+flow distribution allows it. CX6 RDMA-DV 5W/6W and AF_XDP 5W/6W explicitly
+disclose the larger individual-queue quantization instead of hiding it. Queue count,
 descriptor depth and offered load are screened independently per hardware and
 datapath. “Maximum” means maximum forwarding under pressure, not zero-loss NDR.
 
 ## ConnectX-4
 
 CX4 does not advertise eMPW, so native RDMA-DV uses legacy SEND. One- and
-two-worker winners are q2/RXD2048/TXD2048. DPDK independently selects
+two-worker winners are q2/RXD128/TXD2048. DPDK independently selects
 q1/RXD1024/TXD2048 at one worker and q2/RXD1024/TXD2048 at two. At three
 workers, RDMA-DV selects q3/RXD1024/TXD2048 and four QPs including an inactive
 main QP. DPDK selects q3/RXD2048/TXD2048 and four TXQs including inactive
@@ -23,11 +25,18 @@ main TXQ0. Its retained hardware-detail snapshots identify No MPW with inline
 and the `mlx5_tx_burst_sci` function: the requested `txq_inline_mpw=1` did not
 select MPW, so the DPDK winner is classic SEND with inline.
 
+Native full-packet inline is rejected: it expands each legacy SEND from one to
+two WQEBBs and loses 42--44% in matched TX-only controls. Crossed-order
+doorbell tests put explicit pre/post barriers and `MLX5_SHUT_UP_BF` within
+0.3% of stock, with the sign changing by execution order. Neither mechanism
+explains the original gap. RXD128 does: it brings native within 0.6% of DPDK
+without altering the hot path.
+
 | Path | 1W | 2W | 3W | 3W qualification |
 |---|---:|---:|---:|---|
-| RDMA-DV | 15.803 Mpps / 206.6 cpp | 28.983 / 225.3 | 42.166+ / 232.2 | q3; RXQ spread ≤0.159%; source-limited |
+| RDMA-DV | 16.438 Mpps / 198.6 cpp | 29.977 / 217.7 | 42.166+ / 232.2 | q3; RXQ spread ≤0.159%; source-limited |
 | DPDK, classic SEND + inline | 16.349 / 199.6 | 30.141 / 216.7 | 42.213+ / 231.9 | q3; TXQ0 inactive; RXQ spread ≤0.593%; source-limited |
-| AF_XDP ZC; kernel counted | 3.768 / 865.6 | 8.151 / 800.4 | 11.162 / 876.7 | q3; W+1 private XSKs; no auxiliary CPU |
+| AF_XDP ZC; kernel counted | 3.768 / 865.6 | 8.151 / 800.4 | 12.409 / 788.8 | q3; W+1 private XSKs; XSK1024/kernel-RX512; no auxiliary CPU |
 
 Each 3W winner is a three-window 3×20-second result with a restarted source.
 The final source means
@@ -37,6 +46,13 @@ therefore source-limited lower bounds, and their cycles include idle polling
 at the offered boundary.
 All three RX queues are active and balanced. Native main TQ0 and DPDK TXQ0
 remain inactive; the three worker QPs/TXQs exclusively carry the traffic.
+
+The 1W/2W RXD128 finals also use three 20-second windows and the default TX
+retry policy. At 1W, q0+q1 are both polled by worker0; at 2W, q0 maps to
+worker0 and q1 to worker1. The main QP is inactive and every worker owns one
+exclusive thread-local QP. RXQ spread is at most 0.000046% and 0.459%, with
+zero physical errors, discards and PAUSE. RXD64 collapses to about 2.17 Mpps,
+and q4/RXD128 reaches only 29.399 Mpps; both are rejected.
 
 The synchronized true64 traffic-generator ceiling control measured 42.634
 Mpps source TX and 42.640 Mpps at the CX4 physical RX counter. A separate
@@ -51,8 +67,8 @@ not feed the article table, public CSV or main charts. They also stopped at the
 source boundary (42.821/42.818 Mpps for RDMA-DV/DPDK), so adding a fourth
 worker did not establish either DUT ceiling. The comparable AF_XDP series uses
 one RX queue per worker plus a private TX-only XSK for the main thread and
-reaches 11.162 Mpps at 3W. IRQ/NAPI stays on main+worker CPUs; the 1.165% RXQ
-spread is RETA/finite-flow quantization. A 4W result remains outside the CX4
+reaches 12.409 Mpps at 3W. IRQ/NAPI stays on main+worker CPUs; the 1.176%
+offered RXQ spread is the exact 85/85/86 RETA quantization. A 4W result remains outside the CX4
 headline matrix so every path is plotted only at one, two and three workers.
 
 ## ConnectX-5
@@ -60,34 +76,57 @@ headline matrix so every path is plotted only at one, two and three workers.
 ### RDMA-DV
 
 Native uses cyclic RQ, eMPW, `mode dv` and `no-multi-seg`.
+All CX5 screens and finals retain the default TX retry policy.
 
-| Workers | Winner | Physical TX | Worker cpp | RXQ spread |
+| Workers | Winner | Physical TX | Worker cpp / ipp | RXQ spread |
 |---:|---|---:|---:|---:|
-| 1 | q1 RXD1024/TXD512 | 24.310 | 127.237 | n/a |
-| 2 | q2 RXD512/TXD512 | 45.389 | 135.840 | <1% |
-| 4 | q4 RXD256/TXD1024 | 60.620 | 203.355 | 0.095–0.163% |
+| 1 | q1 RXD1024/TXD512 | 24.310 | 127.237 / 331.600 | n/a |
+| 2 | q2 RXD512/TXD512 | 45.389 | 135.840 / 331.216 | <1% |
+| 4 | q4 RXD128/TXD1024 | 62.220 | 197.813 / 420.377 | ≤0.548% |
+| 5 | q5 RXD128/TXD512 | 64.734 | 237.592 / 486.722 | ≤0.258% |
+| 6 | q6 RXD128/TXD256 | 61.755 | 298.854 / 603.828 | ≤0.137% |
 
-At 4W, q8 and q16 reach 56.91 and 55.31 Mpps; q16 is rejected at 1.78%
-spread. Doubling TXD to 2048 reduces `no free tx slots` about 12% but changes
-TX only +0.22%. RXD512 drops TX to 58.77 Mpps. Ring depth changes queueing
-headroom, not the sustainable service rate.
+The 4W--6W winners use an experimental, unsubmitted validation change that
+accepts RX queues from 128 entries while retaining the existing 256-entry TX
+minimum. They use one RXQ per worker, one private QP per worker plus an
+inactive main QP, and pointer eMPW (`tx-empw-inline off`). At 4W and 5W they
+are respectively 1.159% and 2.482% above synchronized DPDK. The 6W point is
+the sole qualified native result below its DPDK peer: **-1.471%**, with 62.94
+million `no free tx slots` across the three retained windows. This exception
+is reported rather than hidden.
+
+The descriptor sweep is non-monotonic. At 5W and a matched rate-63 screen,
+TXD256/512/1024/2048 gives 62.714/62.745/62.661/62.639 Mpps. At 6W the same
+sweep gives 62.713/61.908/62.640/61.681, but the apparent TXD256 short winner
+does not sustain: its 3x20-second mean is 61.755 Mpps. Independent TXD512 and
+TXD1024 20-second controls reach only 61.565 and 60.817 Mpps. RXD64 falls to
+60.056 Mpps at the best rate-63 screen; q12/RXD128 gives 57.052; sparse CQE
+every two/four doorbells gives 61.697/61.535; and TXD128 gives 60.018. All are
+rejected. Full-packet inline is also rejected on CX5: at the matched 4W
+overload it falls to 38.353 Mpps versus the pointer path.
 
 ### DPDK mlx5
 
 DPDK uses vector RX, enhanced MPW, fast-free, CQE compression disabled and an
 inactive main TXQ plus private worker TXQs.
 
-| Workers | Winner | Physical TX | Worker cpp | RXQ spread |
+| Workers | Winner | Physical TX | Worker cpp / ipp | RXQ spread |
 |---:|---|---:|---:|---:|
-| 1 | q1 RXD1024/TXD1024; TXQ2 | 18.980 | 162.973 | n/a |
-| 2 | q2 RXD1024/TXD512; TXQ3 | 36.374 | 169.512 | 0.63–0.67% |
-| 4 | q4 RXD1024/TXD512; TXQ5 | 55.063 | 223.877 | 0.015–0.025% |
+| 1 | q1 RXD1024/TXD1024; two total TXQs | 18.587 | 165.464 / 456.740 | n/a |
+| 2 | q2 RXD512/TXD512; three total TXQs | 36.428 | 168.857 / 456.813 | ≤0.507% |
+| 4 | q4 RXD256/TXD512; five total TXQs | 61.507 | 200.054 / 509.450 | ≤0.238% |
+| 5 | q5 RXD128/TXD512; six total TXQs | 63.166 | 243.510 / 570.059 | ≤0.216% |
+| 6 | q6 RXD128/TXD256; seven total TXQs | 62.677 | 294.527 / 651.625 | ≤0.708% |
 
-The 4W screen crosses q4/q8/q16 with one, two and four TXQs per worker. q4
-with one wins. q8/q16 either lose throughput or exceed 1% fairness. RXD
-1024/2048/4096 produces 58.09/57.25/56.41 Mpps in matched short windows.
-TXD1024 reduces TX failures but gains only 0.16%. Extra queues and descriptors
-do not lift the CX5 4W plateau.
+These replace the older 1W/2W/4W cells whose physical-counter interval was
+longer than their sequential per-thread `perf` interval. The canonical
+harness uses one synchronized multi-TID `perf` command and separately timed
+source and DUT counter windows. Every point has one RXQ and one private TXQ
+per worker plus an inactive main TXQ0. The winning RX depth changes with
+worker count: 1024 at 1W, 512 at 2W, 256 at 4W, and 128 at 5W/6W. One extra
+private TXQ per worker loses at 1W/2W/4W, and earlier four-per-worker screens
+also lose. All retained points are MRR under disclosed RX/TX pressure, not
+NDR.
 
 ### AF_XDP zero-copy
 
@@ -100,13 +139,19 @@ CPU-wide counters include that kernel work.
 |---:|---:|---:|---:|---:|
 | 1 | 5.434 Mpps | 566.8 | 66.0 | n/a |
 | 2 | 10.112 | 609.3 | 34.8 | ≤0.006% |
-| 4 | 13.846 | 890.6 | 25.1 | ≤0.009% |
+| 4 | 14.153 | 871.0 | 25.2 | ≤0.009% |
+| 5 | 14.157 | 1076.3 | 25.9 | ≤0.561% |
 
 RX4096/TX1024 is retained. Buffers from 524k to 2M, coalescing screens and the
 legacy syscall lock did not yield a monotonic sustained gain. Socket busy
-polling was 1.18% slower in the corrected 4W short A/B and remains off. Deeper
-rings delay pressure; they do not raise service rate. The 2W→4W plateau is a
-service limit, not an inactive or unfair queue.
+polling is neutral to slightly negative in the post-fix 3×20 A/B and remains
+off. The requested fixed 8-usec/128-frame moderation reads back as 3 usec/32
+frames on this mlx5 stack. Deeper rings delay pressure; they do not raise
+service rate. The 2W→4W plateau is a TX/XSK service limit, not an inactive or
+unfair queue. The RETA-corrected 5W point is also a qualified 3x20-second
+control with the exact W+1 topology and no auxiliary CPU. Its 0.028% gain over
+4W costs 23.0% more all-CPU cycles per packet and substantially more TX
+pressure, confirming the plateau; there is no qualified 6W publication cell.
 
 ## ConnectX-6 Dx
 
@@ -119,10 +164,10 @@ now supplies the headline profile from two workers upward:
 | Workers / RXQ | TX representation | Physical TX | Worker cpp / ipp | Status |
 |---|---|---:|---:|---|
 | 1 / 4 | pointer | 45.370 Mpps | 90.153 / 316.801 | clean final; inline screen is lower |
-| 2 / 4 | full inline + immediate free | **60.893** | **134.211 / 445.618** | MRR; measured warm-up placement; RXQ spread ≤0.136% |
+| 2 / 4 | full inline + immediate free | **61.027** | **133.982 / 431.603** | MRR; q0+q2 / q1+q3 placement; worker spread ≤0.671% |
 | 4 / 8 | full inline + immediate free | **109.049** | **149.917 / 496.182** | canonical MRR, 3×20 s |
-| 5 / 20 | full inline + immediate free | **124.564** | **164.023 / 576.816** | CQE32/ring8192; RXQ spread ≤0.992% |
-| 6 / 12 | full inline + immediate free | **122.867** | **199.526 / 725.189** | CQE32/ring8192; RXQ spread ≤0.461% |
+| 5 / 15 | full inline + immediate free | **126.976** | **160.874 / 546.342** | Gerrit 46540 PS2 datapath; worker spread ≤0.403%; RXQ spread ≤1.580% |
+| 6 / 24 | full inline + immediate free | **137.354** | **178.425 / 617.369** | Gerrit 46540 PS2 datapath; source-limited; worker spread ≤0.866%; RXQ spread ≤2.520% |
 | 2 / 4 | pointer | 52.814 | 154.925 / 562.506 | historical control |
 | 4 / 8 | pointer | 53.233 | 307.075 / 1242.695 | historical control |
 | 5 / 10 | pointer | 53.445 | 382.337 / 1584.736 | historical control |
@@ -145,12 +190,15 @@ pointer / inline-retained / inline-immediate-free produces 68.868 / 140.816 /
 or CQE cadence—are the primary cause. Immediate free adds 3.6% over retained
 inline and is secondary.
 
-The L3 series sustains 60.893/109.049/124.564/122.867 Mpps at 2W/4W/5W/6W.
-The 5W winner uses q20, four RX queues per worker; q12 is retained at 6W because
-its individual RXQ spread is 0.461%, while faster q18/q24 screens exceeded the
-strict per-RXQ fairness threshold. Priority-buffer and software-pressure
-counters make these MRR rather than NDR. A separate 4W 91.282-Mpps control has
-zero in both domains.
+The L3 series sustains 61.027/109.049/126.976/137.354 Mpps at 2W/4W/5W/6W.
+The 5W and 6W winners use q15 and q24. Requiring every queue to fall below 1%
+had previously selected q20/q12 and created a false 5W-to-6W regression. The
+corrected qualification uses the scheduling boundary that matters for scaling:
+the sum of all queues polled by each worker. That spread remains below 0.403%
+and 0.866%, while the larger individual-RXQ spreads remain visible. The 6W
+cell follows a 138.335-Mpps source mean and is a lower bound. Priority-buffer
+and software-pressure counters make these MRR rather than NDR. A separate 4W
+91.282-Mpps control has zero in both domains.
 
 The per-TXQ adaptive follow-up is a negative result: 10/128 backlog hysteresis
 oscillated roughly 250,000 times per TXQ in six seconds and reduced CX6 4W/q4

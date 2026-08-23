@@ -93,7 +93,8 @@ session.
 The original path always described each packet by address, lkey and length.
 On CX6 that representation is now proven to cause the four-worker plateau: a
 matched full-packet-inline prototype raises TX-only from 68.868 to 145.862
-Mpps and sustained L3 from the 53-Mpps pointer plateau to 124.564 Mpps at 5W. The
+Mpps, while the review datapath raises sustained L3 from the 53-Mpps pointer
+plateau to 126.976 Mpps at 5W and a source-limited 137.354 Mpps at 6W. The
 prototype is disabled by default and has not been proposed as an unconditional
 mode because fixed inline regresses the CX6 one-worker screen and matched BF3
 controls.

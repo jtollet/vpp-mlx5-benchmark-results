@@ -12,6 +12,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+matplotlib.rcParams["svg.hashsalt"] = "vpp-mlx5-benchmark-results"
+
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data" / "results.csv"
@@ -83,7 +85,7 @@ def find(rows, hardware: str, driver: str, workers: int):
 def save(fig, stem: str):
     CHARTS.mkdir(exist_ok=True)
     svg = CHARTS / f"{stem}.svg"
-    fig.savefig(svg, bbox_inches="tight")
+    fig.savefig(svg, bbox_inches="tight", metadata={"Date": None})
     # Matplotlib emits trailing spaces in path data.  Normalize generated
     # text so repository whitespace checks remain useful.
     svg.write_text(
@@ -116,8 +118,8 @@ def throughput_chart(rows):
                 linestyle="--" if driver == "AF_XDP ZC" else "-",
                 label=LABELS[driver],
             )
-            for workers, value in zip(x, y):
-                suffix = "+" if hardware == "ConnectX-4" and workers == 3 and driver != "AF_XDP ZC" else ""
+            for point, workers, value in zip(points, x, y):
+                suffix = "+" if "source-limited" in point["qualification"] else ""
                 # Keep nearby low-rate series readable.  Native labels sit
                 # above the marker, while DPDK and AF_XDP use two different
                 # offsets below it.  This is especially important for CX4,
@@ -158,9 +160,9 @@ def throughput_chart(rows):
         ax.set_xticks([1, 2, 3] if hardware == "ConnectX-4" else [1, 2, 4, 5, 6])
         ax.set_xlim(
             0.6,
-            3.35 if hardware == "ConnectX-4" else 6.35 if hardware == "ConnectX-6 Dx" else 4.35,
+            3.35 if hardware == "ConnectX-4" else 6.35,
         )
-        ax.set_ylim(0, 132)
+        ax.set_ylim(0, 150)
         ax.grid(alpha=0.25)
         ax.set_axisbelow(True)
         ax.set_xlabel("VPP workers")
@@ -185,8 +187,8 @@ def throughput_chart(rows):
     fig.text(
         0.5,
         -0.01,
-        "+ source-limited lower bound (CX4 3W poll-mode); AF_XDP IRQ/NAPI is colocated on declared VPP CPUs\n"
-        "CX6 RDMA-DV uses pointer segments at 1W and the disabled-by-default full-inline prototype from 2W upward",
+        "+ source-limited lower bound; AF_XDP IRQ/NAPI is colocated on declared VPP CPUs\n"
+        "CX6 RDMA-DV uses pointer segments at 1W and the disabled-by-default full-inline review path from 2W upward",
         ha="center",
         fontsize=9,
     )
@@ -252,7 +254,7 @@ def advantage_chart(rows):
     ax.set_axisbelow(True)
     ax.legend(frameon=False, ncol=3, loc="upper center")
     ax.set_title(
-        "With matched eMPW inline, native DV leads at 4W on every capable platform",
+        "Tuned RDMA-DV versus tuned DPDK at matched worker counts",
         fontweight="bold",
     )
     fig.text(0.5, 0.005, "CX4 3W is omitted from the delta because both paths are source-limited", ha="center", fontsize=9)

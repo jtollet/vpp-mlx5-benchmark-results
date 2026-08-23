@@ -46,49 +46,39 @@ def key(row: dict[str, str]) -> tuple[str, str, str, str]:
     return row["hardware"], row["driver"], row["profile"], row["workers"]
 
 
-def check_article_matrix(
+def check_article_claims(
     result_by_key: dict[tuple[str, str, str, str], dict[str, str]],
 ) -> None:
-    """Keep the compact, hand-edited article table synchronized with the CSV."""
-
+    """Keep the graph-led article claims synchronized with the CSV."""
     text = ARTICLE.read_text(encoding="utf-8")
-    start = text.index("| Platform | Datapath | 1 worker | 2 workers | Scale-out point |")
-    end = text.index("\n\n", start)
-    lines = [line for line in text[start:end].splitlines()[2:] if line.startswith("|")]
-    matrix: dict[tuple[str, str], list[str]] = {}
-    current_hardware = ""
-    for line in lines:
-        columns = [column.strip() for column in line.strip("|").split("|")]
-        if columns[0]:
-            current_hardware = columns[0]
-        label = columns[1]
-        driver = (
-            "RDMA-DV"
-            if label.startswith("RDMA-DV")
-            else "DPDK mlx5"
-            if label.startswith("DPDK mlx5")
-            else "AF_XDP ZC"
-        )
-        matrix[(current_hardware, driver)] = columns[2:5]
+    normalized_text = " ".join(text.split())
+    assert "| Platform | Datapath |" not in text, "redundant result table returned"
+    assert "charts/throughput-scaling.png" in text, "missing full-value throughput graph"
+    assert "charts/cpu-budget.png" in text, "missing CPU-cost illustration"
 
-    for (hardware, driver), cells in matrix.items():
-        profile = "strict" if driver == "AF_XDP ZC" else "primary"
-        scale_workers = 3 if hardware == "ConnectX-4" else 4
-        for index, workers in enumerate((1, 2, scale_workers)):
-            result = result_by_key.get((hardware, driver, profile, str(workers)))
-            cell = cells[index]
-            if not result or result["status"] not in FINAL_STATUSES:
-                assert cell == "—", (
-                    f"article should show missing cell as dash: {hardware}/{driver}/{workers}"
-                )
-                continue
-            mpps = f"{float(result['throughput_mpps']):.1f}"
-            if hardware == "ConnectX-4" and workers == 3 and driver != "AF_XDP ZC":
-                mpps += "+"
-            cpp = f"{float(result['dataplane_cycles_per_packet']):,.0f}"
-            assert f"{mpps} / {cpp}" in cell, (
-                f"article/CSV mismatch: {hardware}/{driver}/{workers}"
+    af_pairs = []
+    for (hardware, driver, profile, workers), rdma in result_by_key.items():
+        af = result_by_key.get((hardware, "AF_XDP ZC", "strict", workers))
+        if driver == "RDMA-DV" and profile == "primary" and af:
+            af_pairs.append((rdma, af))
+    throughput_ratios = [
+        float(rdma["throughput_mpps"]) / float(af["throughput_mpps"])
+        for rdma, af in af_pairs
+    ]
+    assert af_pairs and all(ratio > 1 for ratio in throughput_ratios)
+    assert f"{min(throughput_ratios):.2f} to {max(throughput_ratios):.2f}" in text
+    assert "faster than AF_XDP at every matched worker count" in normalized_text
+
+    dpdk_pairs = []
+    for hardware in ("ConnectX-5", "ConnectX-6 Dx", "BlueField-3"):
+        for workers in ("1", "2", "4", "5", "6"):
+            rdma = result_by_key[(hardware, "RDMA-DV", "primary", workers)]
+            dpdk = result_by_key[(hardware, "DPDK mlx5", "primary", workers)]
+            dpdk_pairs.append(
+                float(rdma["throughput_mpps"]) >= float(dpdk["throughput_mpps"])
             )
+    assert sum(dpdk_pairs) == 14 and len(dpdk_pairs) == 15
+    assert "14 of 15 paired cells" in text
 
 
 def check_inline_controls() -> None:
@@ -196,12 +186,12 @@ def main() -> None:
         cell = "ConnectX-4", driver, "primary", "3"
         assert "source-limited" in result_by_key[cell]["qualification"], cell
 
-    check_article_matrix(result_by_key)
+    check_article_claims(result_by_key)
     check_inline_controls()
 
     print(
         f"Data audit passed: {len(results)} matched cells; final true64, 3x20, "
-        "accounting, placement and article-matrix guards valid; pending cells contain no "
+        "accounting, placement and article-claim guards valid; pending cells contain no "
         "measurements."
     )
 

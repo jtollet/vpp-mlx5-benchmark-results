@@ -1,7 +1,7 @@
 # VPP on NVIDIA ConnectX and BlueField: anonymized benchmark data
 
 > **Status: qualified review-code dataset.** The ConnectX-6 root cause and
-> one-to-six-worker series are qualified. Full-inline native code remains a
+> 1/2/4/5/6-worker series are qualified. Full-inline native code remains a
 > disabled-by-default review change; the tested adaptive policy was rejected
 > and only explicit OFF/ON results are retained.
 
@@ -16,13 +16,14 @@ All numeric cells were repeated on the frozen exact VPP review tree. RDMA-DV
 and DPDK have qualified one- and two-worker rows on all four platforms.
 ConnectX-4 RDMA-DV and DPDK are qualified at one, two and three workers; both
 three-worker points are source-limited lower bounds. ConnectX-4 AF_XDP is
-qualified through three workers. ConnectX-5 and BlueField-3 have qualified
-four-worker rows. ConnectX-6 DPDK is qualified from one through six workers
+qualified through three workers. ConnectX-5 and BlueField-3 RDMA-DV/DPDK are
+qualified at one, two, four, five and six workers. ConnectX-6 DPDK is qualified
+at one, two, four, five and six workers
 with inline state controlled independently of TXQ count. ConnectX-6 native is
 qualified at one, two, four, five and six workers; full inline is selected from
 two workers upward, while the old two-to-six-worker pointer plateau is retained
 as a separate control profile. AF_XDP is qualified at 1/2/3 workers on CX4,
-1/2/4 on CX5 and 1/2/4/5/6 on CX6, and is not measured on BlueField-3 by
+1/2/4/5 on CX5 and 1/2/4/5/6 on CX6, and is not measured on BlueField-3 by
 study scope.
 
 AF_XDP measurements are complete for the cyclic-RQ fix carried unchanged into
@@ -58,7 +59,8 @@ code-provenance caveat, not unfinished measurement.
 - VPP PG creates 60 bytes before FCS; retained source and DUT counters must
   both prove exactly 64.000 physical bytes per packet. Older PG `size 64`
   observations are 68-byte MAC-frame controls and are excluded.
-- Finals are normally means of three 20-second windows.
+- Finals are normally means of three 20-second windows; the CSV throughput SD
+  is the population standard deviation of those repetitions.
 - AF_XDP values are peak forwarding under offered overload, not formal
   zero-loss NDR; shortage and ring-pressure counters are retained.
 - Retained AF_XDP comparisons keep IRQ/NAPI inside the declared worker CPU

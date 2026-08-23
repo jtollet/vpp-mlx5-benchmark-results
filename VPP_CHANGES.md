@@ -1,7 +1,7 @@
 # VPP review-code provenance
 
 Live Gerrit state for the active datapath changes was checked on
-**2026-08-23 12:40 CEST**. Dependency changes 45505 and 46155 were last checked
+**2026-08-23 15:20 CEST**. Dependency changes 45505 and 46155 were last checked
 on **2026-08-20 21:34 CEST**. Live review state and frozen benchmark revisions
 are deliberately separate: a newer patch set or later merge does not change
 which source tree produced the measurements.
@@ -13,16 +13,14 @@ which source tree produced the measurements.
 | [46465](https://gerrit.fd.io/r/c/vpp/+/46465) | PS9 `85d127f91c87ed3c3ba4cf389951815c7e54f6fb` | `NEW`; Verified +1; Code-Review 0 | PS8 | Native mlx5 eMPW transmit path; material on capable CX5/CX6/BF3 hardware. CX4 falls back automatically. |
 | [46539](https://gerrit.fd.io/r/c/vpp/+/46539) | PS1 `a4d1def8af97cd2e480b0764723dd9a9c9508b0e` | `NEW`; Verified +1; Code-Review 0 | PS1 | Optional AF_XDP socket busy polling; off by default and retained only on CX6. |
 | [46540](https://gerrit.fd.io/r/c/vpp/+/46540) | PS2 `89f01516b8fe3b468b43caef458e31cb060d0360` | `NEW`; Verified +1; Code-Review 0 | PS2 datapath | Device-wide explicit eMPW full-packet inline ON/OFF policy. |
-| [46547](https://gerrit.fd.io/r/c/vpp/+/46547) | PS1 `017311deddcbd19f3c0e82d5359544d73787ef71` | `NEW`; required GHA passed; VPP CI running; Code-Review 0 | PS1 | Bounds AF_XDP input refill to real RX queues when a private main TX-only XSK is present. |
+| [46547](https://gerrit.fd.io/r/c/vpp/+/46547) | PS1 `017311deddcbd19f3c0e82d5359544d73787ef71` | `NEW`; Verified +1; Code-Review 0 | PS1 | Bounds AF_XDP input refill to real RX queues when a private main TX-only XSK is present. |
 
 Changes 45505 PS49 and 46155 PS14 are frozen dependency revisions: the former
 provides the DV TX/WQE-accounting foundation and the latter corrects verbs-port
 selection. Neither is credited with the measured inline or AF_XDP gains.
 
-Changes 46465, 46539, 46540 and 46547 have zero unresolved comments. The first
-three are Verified +1 and wait for reviewer scoring. Change 46547 was newly
-submitted from the tested three-line fix; its required workflow passed and the
-full VPP workflow was still running at the timestamp above.
+Changes 46465, 46539, 46540 and 46547 have zero unresolved comments. All four
+are Verified +1 and wait for reviewer scoring.
 
 For 46465 PS9, one rerun was started after the preceding run failed only in
 unrelated session/TAP and broad NAT/QUIC/IPsec tests; no RDMA/eMPW path was
