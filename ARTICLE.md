@@ -1,33 +1,30 @@
-# What RDMA-DV buys VPP on NVIDIA ConnectX and BlueField
+# Three VPP datapaths for NVIDIA ConnectX and BlueField at 64 bytes
 
-> **Code provenance.** The ConnectX-6 1/2/4/5/6-worker series is qualified.
-> Full-packet inline remains a disabled-by-default review change with an
-> explicit on/off policy. The CX4/CX5 RXD128 rows use a separate setup-time
-> validation change and remain provisional until review.
+> **Code provenance.** Some retained rows use disabled-by-default review code.
+> Exact revisions and the status of every affected result are published with
+> the dataset.
 
-*True 64-byte IPv4 forwarding shows a lean native fast path, why one eMPW
-representation changed CX6 from a 53-Mpps plateau to 137.4 Mpps, and the real CPU price of
-AF_XDP zero-copy.*
+*A best-found-configuration comparison of native RDMA-DV, DPDK mlx5 and
+AF_XDP zero-copy for same-port IPv4 forwarding.*
 
-There are three credible ways to connect VPP to an NVIDIA mlx5 device. The
-native RDMA plugin accesses mlx5 queues through Direct Verbs (DV), the DPDK
-plugin uses the mlx5 PMD, and the AF_XDP plugin uses Linux zero-copy sockets.
-They all avoid a conventional kernel socket datapath, but they do not perform
-the same work.
+VPP has three practical high-performance options for NVIDIA ConnectX adapters
+and BlueField DPUs. The native RDMA plugin accesses mlx5 queues through Direct
+Verbs (DV), the DPDK plugin uses the mlx5 PMD, and the AF_XDP plugin uses Linux
+zero-copy sockets. This study tunes queue count, descriptor depth, placement
+and applicable driver controls independently for each option, then reports
+the best qualified results found with physical 64-byte Ethernet frames.
 
-The clearest result is the native-versus-kernel comparison: **RDMA-DV is faster
-than AF_XDP at every matched worker count on every measured adapter.** It
-forwards 2.27 to 4.57 times as many packets, while AF_XDP consumes 2.25 to
+The resulting curves show a consistent native-versus-kernel difference:
+**RDMA-DV is faster than AF_XDP at every matched worker count on every measured
+adapter.** It forwards 2.27 to 4.57 times as many packets, while AF_XDP consumes 2.25 to
 4.53 times as many dataplane-CPU cycles per successful packet. Those cycles
 are not estimated: IRQ, NAPI, XDP and XSK work is counted on the same declared
 CPUs as VPP.
 
-DPDK is the useful second control because it also polls the NIC from VPP. On
-the eMPW-capable adapters, RDMA-DV leads tuned DPDK in 14 of 15 paired cells;
-the sole exception is CX5 at six workers, by 1.5%. CX4, which lacks eMPW, is
-effectively a draw. The conclusion is therefore not that every inline mode is
-fast. It is that the native DV path removes a substantial software layer, and
-that its transmit representation must still match the hardware.
+DPDK is the useful second control because it also polls the NIC from VPP.
+Across CX5, CX6 and BF3, RDMA-DV leads tuned DPDK in 14 of 15 paired cells;
+the sole exception is CX5 at six workers, by 1.5%. CX4 is effectively a draw.
+The underlying transmit mechanisms are examined only after the results.
 
 ## What was measured
 
@@ -85,7 +82,7 @@ Two limits matter when reading the throughput curve. CX4 reaches its measured
 points are lower bounds. CX6 RDMA-DV at six workers is likewise source-limited
 at 137.4 Mpps. Neither boundary applies to the AF_XDP points.
 
-## Why RDMA-DV is the compelling default
+## What separates the three datapaths
 
 The native plugin receives directly into VPP buffers and consumes mlx5 CQEs
 from the VPP worker. It avoids both the kernel XDP/XSK machinery used by

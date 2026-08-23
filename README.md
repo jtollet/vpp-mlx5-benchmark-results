@@ -5,8 +5,8 @@
 > disabled-by-default review change; the tested adaptive policy was rejected
 > and only explicit OFF/ON results are retained.
 
-This repository accompanies the article **“What RDMA-DV buys VPP on
-NVIDIA ConnectX and BlueField.”** It archives a tuned comparison
+This repository accompanies the article **“Three VPP datapaths for NVIDIA
+ConnectX and BlueField at 64 bytes.”** It archives a tuned comparison
 of VPP native RDMA-DV, VPP/DPDK mlx5 and VPP/AF_XDP native zero-copy for true
 64-byte-Ethernet same-port IPv4 forwarding with one to six workers.
 
