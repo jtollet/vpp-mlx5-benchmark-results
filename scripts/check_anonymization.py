@@ -18,6 +18,7 @@ MESSAGE_IDS = {
 ALLOWED_PUBLIC_DOMAINS = {
     "creativecommons.org",
     "gerrit.fd.io",
+    "kernel.googlesource.com",
     "lore.kernel.org",
     "matplotlib.org",
     "medium.com",

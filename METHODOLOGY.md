@@ -108,12 +108,17 @@ python3 scripts/plot_results.py
 The frozen VPP integration revision is
 `83d45adb1b624d66ed09c90ba7e0f1484b89587e`, with source tree
 `00e03df873befc01bb7fdfcc5f800b0a0ebc595f`. It uses DPDK 26.03 and rdma-core
-62.0. The public VPP reviews are linked from the published article.
+62.0. The public VPP reviews and exact tested patch sets are listed in
+[`VPP_CHANGES.md`](VPP_CHANGES.md). Later review iterations do not
+retroactively change the frozen measurements.
 
 AF_XDP results use the submitted mlx5e ownership fix. The public
 [`netdev v3 series`](https://lore.kernel.org/netdev/cover.1787347981.git.jtollet@cisco.com/)
-covers cyclic-RQ and MPWQE refill retries. These measurements describe the
-tested patched kernel and remain provisional until the fix is upstream.
+covers cyclic-RQ and MPWQE refill retries and identifies the code used for the
+measurements. Its v4 successor was accepted into `netdev/net` as
+[`e01620844c5c`](https://kernel.googlesource.com/pub/scm/linux/kernel/git/netdev/net/+/e01620844c5c88b6fcf819d171df8e3976a0e76f)
+and
+[`63811edf5125`](https://kernel.googlesource.com/pub/scm/linux/kernel/git/netdev/net/+/63811edf512584c946e5e96b100e9e280703bbb5).
 
 ## Privacy
 
