@@ -16,8 +16,6 @@ revisions and their post-publication evolution are documented in
 
 - [`METHODOLOGY.md`](METHODOLOGY.md): workload, qualification, placement and CPU
   accounting.
-- [`MEDIUM_UPDATE.md`](MEDIUM_UPDATE.md): copy-ready post-publication edits for
-  the Medium article.
 - [`VPP_CHANGES.md`](VPP_CHANGES.md): exact tested patch sets and the dated
   review-status update.
 - [`data/results.csv`](data/results.csv): throughput, CPU scopes and
